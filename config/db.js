@@ -26,3 +26,4 @@ export const connectDB = async () => {
 };
 
 export default connectDB;
+// admin_db_user:aR8sHrtIsYZoF2J1(Mongodb connection password)
