@@ -25,11 +25,16 @@ const serializeOrder = (order) => {
   };
 };
 
+// GET /api/admin/orders?status=&user=&page=&limit=
+// `user` (a customer's Mongo _id) backs UserDetails.jsx's Order History
+// section — filtering server-side instead of shipping every order to the
+// client and matching customer.userId in the browser.
 export const listOrders = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 50 } = req.query;
+  const { status, user, page = 1, limit = 50 } = req.query;
 
   const filter = {};
   if (status && ORDER_STATUSES.includes(status)) filter.status = status;
+  if (user && mongoose.isValidObjectId(user)) filter.user = user;
 
   const skip = (Number(page) - 1) * Number(limit);
 

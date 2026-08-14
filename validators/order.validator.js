@@ -40,6 +40,10 @@ export const updateOrderNotesValidator = [
 
 export const listOrdersQueryValidator = [
   query('status').optional().isIn(ORDER_STATUSES),
+  // Lets UserDetails.jsx ask for just one customer's order history —
+  // GET /admin/orders?user=<mongoId> — instead of every page pulling the
+  // full order list and filtering client-side.
+  query('user').optional().isMongoId().withMessage('Invalid user id.'),
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
 ];

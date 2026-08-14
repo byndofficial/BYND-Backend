@@ -22,23 +22,23 @@ export const resolveAudience = async (audienceId) => {
   switch (audienceId) {
     case 'orders': {
       const userIds = await Order.distinct('user');
-      return User.find({ ...baseFilter, _id: { $in: userIds } }).select('_id');
+      return User.find({ ...baseFilter, _id: { $in: userIds } }).select('name email');
     }
     case 'wishlist': {
       const userIds = await Wishlist.distinct('user', { 'items.0': { $exists: true } });
-      return User.find({ ...baseFilter, _id: { $in: userIds } }).select('_id');
+      return User.find({ ...baseFilter, _id: { $in: userIds } }).select('name email');
     }
     case 'inactive-30d': {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      return User.find({ ...baseFilter, lastLoginAt: { $lt: cutoff } }).select('_id');
+      return User.find({ ...baseFilter, lastLoginAt: { $lt: cutoff } }).select('name email');
     }
     case 'new-signups': {
       const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      return User.find({ ...baseFilter, createdAt: { $gte: cutoff } }).select('_id');
+      return User.find({ ...baseFilter, createdAt: { $gte: cutoff } }).select('name email');
     }
     case 'all':
     default:
-      return User.find(baseFilter).select('_id');
+      return User.find(baseFilter).select('name email');
   }
 };
 

@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema(
 
     // Admin-only, never exposed to the storefront API.
     adminNotes: { type: String, trim: true, maxlength: 1000, default: '' },
+
+    // Self-service account deletion (see controllers/user.controller.js).
+    // `select: false` so these never leak through /auth/me or /admin/users
+    // responses — controllers that need them re-query with `.select('+...')`.
+    deletionOtpHash: { type: String, default: null, select: false },
+    deletionOtpExpiresAt: { type: Date, default: null, select: false },
+    deletionOtpAttempts: { type: Number, default: 0, select: false },
   },
   { timestamps: true },
 );
