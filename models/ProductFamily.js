@@ -45,6 +45,11 @@ const productFamilySchema = new mongoose.Schema(
     category: { type: String, required: true, trim: true, lowercase: true },
     subCategory: { type: String, required: true, trim: true, lowercase: true },
 
+    // Top-level grouping used by the storefront Type filter
+    // (AllProducts.jsx / Search.jsx) — derived client-side from category
+    // but stored here so it can actually be queried/filtered on.
+    type: { type: String, required: true, trim: true, enum: ['Tops', 'Bottoms'] },
+
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, default: null, min: 0 },
     badge: { type: String, enum: ['NEW', 'BEST SELLER', 'SALE', null], default: null },
@@ -68,6 +73,7 @@ const productFamilySchema = new mongoose.Schema(
 );
 
 productFamilySchema.index({ category: 1, subCategory: 1 });
+productFamilySchema.index({ type: 1 });
 productFamilySchema.index({ baseName: 'text' });
 
 // One color per family — mirrors the frontend's duplicate-color check.

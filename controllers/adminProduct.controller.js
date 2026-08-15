@@ -48,8 +48,20 @@ export const getProductById = asyncHandler(async (req, res) => {
 
 // POST /admin/products
 export const createProduct = asyncHandler(async (req, res) => {
-  const { styleCode, baseName, category, subCategory, price, costPrice, badge, description, highlights, variants } =
-    req.body;
+  const {
+    styleCode,
+    baseName,
+    category,
+    subCategory,
+    type,
+    price,
+    costPrice,
+    badge,
+    description,
+    highlights,
+    sizeChartId,
+    variants,
+  } = req.body;
 
   const upperStyleCode = styleCode.trim().toUpperCase();
   if (await isStyleCodeTaken(upperStyleCode)) {
@@ -84,15 +96,18 @@ export const createProduct = asyncHandler(async (req, res) => {
     baseName,
     category,
     subCategory,
+    type,
     price,
     costPrice: costPrice ?? null,
     badge: badge || null,
     description: description || '',
     highlights: highlights || [],
+    sizeChart: sizeChartId || null,
     variants: processedVariants,
   });
 
   res.status(201).json({ success: true, data: product });
+  
 });
 
 // PATCH /admin/products/:productId
@@ -105,6 +120,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     baseName,
     category,
     subCategory,
+    type,
     price,
     costPrice,
     badge,
@@ -112,6 +128,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     highlights,
     variants,
     isActive,
+    sizeChartId,
   } = req.body;
 
   if (styleCode !== undefined) {
@@ -124,12 +141,14 @@ export const updateProduct = asyncHandler(async (req, res) => {
   if (baseName !== undefined) product.baseName = baseName;
   if (category !== undefined) product.category = category;
   if (subCategory !== undefined) product.subCategory = subCategory;
+  if (type !== undefined) product.type = type;
   if (price !== undefined) product.price = price;
   if (costPrice !== undefined) product.costPrice = costPrice;
   if (badge !== undefined) product.badge = badge || null;
   if (description !== undefined) product.description = description;
   if (highlights !== undefined) product.highlights = highlights;
   if (isActive !== undefined) product.isActive = isActive;
+  if (sizeChartId !== undefined) product.sizeChart = sizeChartId || null;
 
   if (variants !== undefined) {
     // eslint-disable-next-line no-restricted-syntax

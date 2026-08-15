@@ -6,6 +6,7 @@ const buildFilterQuery = (query) => {
   const filter = { isActive: true };
   if (query.category) filter.category = query.category;
   if (query.subCategory) filter.subCategory = query.subCategory;
+  if (query.type) filter.type = query.type;
   if (query.color) filter['variants.color'] = new RegExp(`^${query.color}$`, 'i');
   if (query.size) filter['variants.sizes.size'] = query.size;
   if (query.minPrice || query.maxPrice) {
@@ -50,7 +51,7 @@ export const listProducts = asyncHandler(async (req, res) => {
 
 // GET /products/:productId
 export const getProductById = asyncHandler(async (req, res) => {
-  const product = await ProductFamily.findOne({ _id: req.params.productId, isActive: true });
+  const product = await ProductFamily.findOne({ _id: req.params.productId, isActive: true }).populate('sizeChart');
   if (!product) throw ApiError.notFound('Product not found.');
   res.status(200).json({ success: true, data: product });
 });

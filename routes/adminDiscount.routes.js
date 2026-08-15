@@ -1,10 +1,7 @@
 import { Router } from 'express';
 import { validationResult } from 'express-validator';
 import ApiError from '../utils/ApiError.js';
-// ⚠️ Adjust this import to match whatever admin-auth middleware
-// adminProduct.routes.js / adminOrder.routes.js actually use — I don't have
-// those two route files, so this is a best guess at the name/path.
-import { requireAdmin } from '../middlewares/adminAuth.middleware.js';
+import verifyAdminToken from '../middleware/verifyAdminToken.js';
 import {
   listDiscounts,
   getDiscountById,
@@ -31,7 +28,7 @@ const runValidation = (req, res, next) => {
   next();
 };
 
-router.use(requireAdmin);
+router.use(verifyAdminToken);
 
 router.get('/', listDiscounts);
 router.get('/:discountId', discountIdParamValidator, runValidation, getDiscountById);

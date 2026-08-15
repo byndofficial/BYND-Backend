@@ -19,6 +19,7 @@ import analyticsRoutes from './analytics.routes.js';
 import notificationRoutes from './notification.routes.js';
 import adminNotificationRoutes from './adminNotification.routes.js';
 import emailRoutes from './email.routes.js';
+import sizeChartRoutes from './sizeChart.routes.js';
 
 const router = Router();
 
@@ -47,6 +48,8 @@ router.use('/admin/analytics', analyticsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin/notifications', adminNotificationRoutes);
 router.use('/admin/email-templates', emailRoutes);
+router.use('/size-charts', sizeChartRoutes);
+router.use('/admin/size-charts', sizeChartRoutes);
 
 // ...etc — added one resource at a time per the project roadmap.
 

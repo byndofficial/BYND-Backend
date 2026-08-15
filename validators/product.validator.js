@@ -33,6 +33,7 @@ export const createProductValidator = [
   body('styleCode').trim().notEmpty().withMessage('Style code is required.').isLength({ max: 20 }),
   body('category').trim().notEmpty().withMessage('Choose a category.'),
   body('subCategory').trim().notEmpty().withMessage('Choose a sub-category.'),
+  body('type').trim().notEmpty().withMessage('Choose a type.').isIn(['Tops', 'Bottoms']).withMessage('Invalid type.'),
   body('price').isFloat({ min: 0 }).withMessage('Enter a valid price.'),
   body('costPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Enter a valid cost price.'),
   body('badge').optional({ nullable: true }).isIn(['NEW', 'BEST SELLER', 'SALE']),
@@ -51,6 +52,7 @@ export const productIdParamValidator = [param('productId').isMongoId().withMessa
 export const listProductsQueryValidator = [
   query('category').optional().trim(),
   query('subCategory').optional().trim(),
+  query('type').optional().isIn(['Tops', 'Bottoms']),
   query('minPrice').optional().isFloat({ min: 0 }),
   query('maxPrice').optional().isFloat({ min: 0 }),
   query('color').optional().trim(),
