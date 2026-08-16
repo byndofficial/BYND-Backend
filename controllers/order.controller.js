@@ -5,9 +5,9 @@ import User from '../models/User.js';
 import { createOrder as createRazorpayOrder } from '../services/razorpay.service.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import InvoiceService from '../services/invoice.service.js';
 
-const FREE_DELIVERY_THRESHOLD = 1999;
-const DELIVERY_FEE = 99;
+const DELIVERY_FEE = 40;
 
 // Same resolution pattern as cart.controller.js — never trust price/name/sku
 // from the client, always re-read them from ProductFamily at order time.
@@ -105,7 +105,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   const resolvedItems = await Promise.all(items.map(resolveOrderItem));
   const subtotal = resolvedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+  const deliveryFee = DELIVERY_FEE;
   const { discountAmount, couponCode: appliedCode, discountDoc } = await resolveCoupon(
     couponCode,
     subtotal,
@@ -174,4 +174,22 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   order.cancelledAt = new Date();
   await order.save();
   res.json({ success: true, data: order });
+});
+
+export const downloadInvoice = asyncHandler(async (req, res) => {
+  const order = await Order.findOne({ _id: req.params.orderId, user: req.user._id }).populate(
+    'user',
+    'name email phone',
+  );
+  if (!order) throw new ApiError(404, 'Order not found.');
+  if (order.status !== 'delivered') {
+    throw new ApiError(400, 'Invoice is only available once your order is delivered.');
+  }
+
+  const { pdfBuffer, fileName } = await InvoiceService.generateInvoicePDF(order, order.user);
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${fileName}"`,
+  });
+  res.send(pdfBuffer);
 });

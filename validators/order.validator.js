@@ -47,3 +47,8 @@ export const listOrdersQueryValidator = [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
 ];
+
+export const updateOrderTrackingValidator = [
+  param('orderId').isMongoId().withMessage('Invalid order id.'),
+  body('trackingLink').trim().isURL().withMessage('Enter a valid tracking URL.'),
+];

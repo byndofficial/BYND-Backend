@@ -4,6 +4,7 @@ import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { ORDER_STATUSES } from '../utils/constants.js';
 import { logAdminAction } from '../services/audit.service.js';
+import InvoiceService from '../services/invoice.service.js';
 
 // Orders older than these two states are considered final — an admin can
 // still add notes, but the status itself shouldn't move any further.
@@ -77,7 +78,12 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
   const previousStatus = order.status;
   order.status = status;
-  if (status === 'delivered') order.deliveredAt = new Date();
+  if (status === 'delivered') {
+    order.deliveredAt = new Date();
+    if (!order.invoiceNumber) {
+      order.invoiceNumber = InvoiceService.generateInvoiceNumber(order._id, order.deliveredAt);
+    }
+  }
   if (status === 'cancelled') order.cancelledAt = new Date();
   await order.save();
 
@@ -103,4 +109,39 @@ export const updateOrderNotes = asyncHandler(async (req, res) => {
 
   const populated = await populateCustomer(Order.findById(order._id));
   res.json({ success: true, data: serializeOrder(populated) });
+});
+
+export const updateOrderTracking = asyncHandler(async (req, res) => {
+  const { trackingLink } = req.body;
+  const order = await Order.findById(req.params.orderId);
+  if (!order) throw new ApiError(404, 'Order not found.');
+
+  order.trackingLink = trackingLink;
+  await order.save();
+
+  await logAdminAction({
+    req,
+    action: 'order.tracking_link_set',
+    entityType: 'Order',
+    entityId: order._id,
+    changes: { orderCode: order.orderCode, trackingLink },
+  });
+
+  const populated = await populateCustomer(Order.findById(order._id));
+  res.json({ success: true, data: serializeOrder(populated) });
+});
+
+export const downloadInvoice = asyncHandler(async (req, res) => {
+  const order = await findOrderFlexible(req.params.orderId);
+  if (!order) throw new ApiError(404, 'Order not found.');
+  if (order.status !== 'delivered') {
+    throw new ApiError(400, 'Invoice is only available once an order is delivered.');
+  }
+
+  const { pdfBuffer, fileName } = await InvoiceService.generateInvoicePDF(order, order.user);
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${fileName}"`,
+  });
+  res.send(pdfBuffer);
 });
