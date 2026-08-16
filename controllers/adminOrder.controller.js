@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { ORDER_STATUSES } from '../utils/constants.js';
+import { logAdminAction } from '../services/audit.service.js';
 
 // Orders older than these two states are considered final — an admin can
 // still add notes, but the status itself shouldn't move any further.
@@ -74,10 +75,19 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, `This order is already ${order.status} and cannot be moved further.`);
   }
 
+  const previousStatus = order.status;
   order.status = status;
   if (status === 'delivered') order.deliveredAt = new Date();
   if (status === 'cancelled') order.cancelledAt = new Date();
   await order.save();
+
+  await logAdminAction({
+    req,
+    action: 'order.status_change',
+    entityType: 'Order',
+    entityId: order._id,
+    changes: { orderCode: order.orderCode, from: previousStatus, to: status },
+  });
 
   const populated = await populateCustomer(Order.findById(order._id));
   res.json({ success: true, data: serializeOrder(populated) });

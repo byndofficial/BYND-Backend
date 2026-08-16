@@ -2,6 +2,7 @@ import env from './config/env.js';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
 import app from './app.js';
+import { startScheduledJobs, stopScheduledJobs } from './jobs/scheduler.js';
 
 let server;
 
@@ -13,11 +14,14 @@ const start = async () => {
   server = app.listen(env.port, () => {
     logger.info(`BYND backend listening on port ${env.port} [${env.nodeEnv}]`);
   });
+
+  startScheduledJobs();
 };
 
 // ---------- Graceful shutdown ----------
 const shutdown = (signal) => {
   logger.info(`${signal} received — shutting down gracefully...`);
+  stopScheduledJobs();
   if (!server) {
     process.exit(0);
     return;

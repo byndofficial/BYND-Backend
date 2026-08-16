@@ -2,6 +2,7 @@ import { firebaseAuth } from '../config/firebaseAdmin.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { logAdminAction } from '../services/audit.service.js';
 
 // Best-effort session revocation — the account's real access is already
 // gated by User.status in verifyFirebaseToken.js, so a failure here just
@@ -74,6 +75,14 @@ export const updateUserStatus = asyncHandler(async (req, res) => {
     await revokeSessions(user.firebaseUid);
   }
 
+  await logAdminAction({
+    req,
+    action: 'user.status_change',
+    entityType: 'User',
+    entityId: user._id,
+    changes: { status },
+  });
+
   res.status(200).json({ success: true, data: user });
 });
 
@@ -122,6 +131,14 @@ export const eraseUser = asyncHandler(async (req, res) => {
 
   await user.save();
   await revokeSessions(user.firebaseUid);
+
+  await logAdminAction({
+    req,
+    action: 'user.erase',
+    entityType: 'User',
+    entityId: user._id,
+    changes: { note: eraseNote },
+  });
 
   // TODO: scrub from any mailing-list/analytics tooling once that
   // integration exists.

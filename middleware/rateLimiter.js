@@ -37,3 +37,16 @@ export const sensitiveLimiter = rateLimit({
   legacyHeaders: false,
   handler: rateLimitHandler,
 });
+
+// COUPON — public coupon-code validation (POST /discounts/validate).
+// Unauthenticated and previously only covered by the generous general
+// tier, which is enough requests to grind through short/guessable codes.
+// Tight enough to stop brute-forcing, loose enough that a real shopper
+// mistyping a code a few times never gets blocked.
+export const couponLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler,
+});

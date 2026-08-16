@@ -10,6 +10,7 @@ import sanitize from './middleware/sanitize.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
+import requireCsrfToken from './middleware/csrf.js';
 import apiRouter from './routes/index.js';
 import { handleWebhook } from './routes/payment.routes.js';
 
@@ -50,12 +51,16 @@ app.use(
 // route (once added under /api/payments/webhook) must use
 // express.raw({ type: 'application/json' }) on itself, mounted BEFORE this
 // json() parser runs on it — see routes/payment.routes.js when it's built.
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+// 15mb — several routes (product/category/hero-slide/size-chart image
+// uploads) send images as base64 data URLs inside JSON bodies. Base64
+// inflates payload size by ~33%, and admins can submit multiple images in
+// one request (e.g. a product with several color variants), so 2mb was too
+// tight and caused spurious 413s on real uploads. Prefer true multipart
+// (middleware/upload.js) for any new image-upload route instead of raising
+// this further.
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(cookieParser());
-
-app.use(express.json());
-app.use('/api', routes);
 
 // ---------- Sanitization ----------
 app.use(sanitize);
@@ -66,6 +71,21 @@ app.use(morgan(env.isProduction ? 'combined' : 'dev', { stream: { write: (msg) =
 // ---------- Rate limiting (general tier; auth/sensitive tiers applied
 // per-route once those routes exist) ----------
 app.use(generalLimiter);
+
+// ---------- CSRF (admin panel only — it's the only cookie-based session;
+// the storefront uses Bearer tokens, which aren't riddable by CSRF) ----------
+// Excludes login/refresh: the CSRF cookie doesn't exist yet before the
+// first successful login, and refresh is itself how a stale/missing CSRF
+// cookie gets reissued. Every other mutating /api/admin/* route requires it.
+app.use((req, res, next) => {
+  const isExemptAuthRoute =
+    req.path === '/api/admin/auth/login' || req.path === '/api/admin/auth/refresh';
+  if (!req.path.startsWith('/api/admin') || isExemptAuthRoute) {
+    next();
+    return;
+  }
+  requireCsrfToken(req, res, next);
+});
 
 // ---------- Health check (no auth, no rate-limit tier concerns) ----------
 app.get('/health', (req, res) => {

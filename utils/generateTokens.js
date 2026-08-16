@@ -40,7 +40,10 @@ export const generateRefreshToken = () => {
 
 // Parses simple duration strings like "30d", "15m", "1h" into milliseconds.
 // Only supports the units this project actually uses — not a general-purpose parser.
-function parseDurationToMs(duration) {
+// Exported so callers (e.g. the admin access-token cookie's maxAge) can stay
+// in sync with JWT_ACCESS_EXPIRES_IN instead of hardcoding a duration that
+// can silently drift from the token's real expiry.
+export function parseDurationToMs(duration) {
   const match = /^(\d+)([smhd])$/.exec(duration);
   if (!match) return 30 * 24 * 60 * 60 * 1000; // fallback: 30 days
 

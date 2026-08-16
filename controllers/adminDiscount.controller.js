@@ -1,6 +1,7 @@
 import Discount from '../models/Discount.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { logAdminAction } from '../services/audit.service.js';
 
 // Admin CRUD for coupons. Deliberately thin — Discount.js already owns the
 // business rules (status derivation via getStatus(), code uniqueness via
@@ -75,6 +76,14 @@ export const createDiscount = asyncHandler(async (req, res) => {
     isPublic: isPublic !== false,
   });
 
+  await logAdminAction({
+    req,
+    action: 'discount.create',
+    entityType: 'Discount',
+    entityId: discount._id,
+    changes: { code: discount.code, type: discount.type, value: discount.value },
+  });
+
   res.status(201).json({ success: true, data: serializeDiscount(discount) });
 });
 
@@ -83,6 +92,8 @@ export const createDiscount = asyncHandler(async (req, res) => {
 export const updateDiscount = asyncHandler(async (req, res) => {
   const discount = await Discount.findById(req.params.discountId);
   if (!discount) throw ApiError.notFound('Discount not found.');
+
+  const before = discount.toObject();
 
   const {
     code,
@@ -129,6 +140,19 @@ export const updateDiscount = asyncHandler(async (req, res) => {
   }
 
   await discount.save();
+
+  await logAdminAction({
+    req,
+    action: 'discount.update',
+    entityType: 'Discount',
+    entityId: discount._id,
+    changes: Object.fromEntries(
+      Object.entries(req.body)
+        .filter(([key]) => key in before)
+        .map(([key, value]) => [key, { from: before[key], to: value }]),
+    ),
+  });
+
   res.json({ success: true, data: serializeDiscount(discount) });
 });
 
@@ -137,5 +161,14 @@ export const deleteDiscount = asyncHandler(async (req, res) => {
   const discount = await Discount.findById(req.params.discountId);
   if (!discount) throw ApiError.notFound('Discount not found.');
   await discount.deleteOne();
+
+  await logAdminAction({
+    req,
+    action: 'discount.delete',
+    entityType: 'Discount',
+    entityId: discount._id,
+    changes: { code: discount.code },
+  });
+
   res.json({ success: true, message: 'Discount deleted.' });
 });

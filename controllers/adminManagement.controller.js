@@ -1,6 +1,7 @@
 import Admin from '../models/Admin.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { logAdminAction } from '../services/audit.service.js';
 
 // GET /api/admin/management/admins — any signed-in admin can view the
 // roster (AdminManagement.jsx shows it read-only to non-super-admins).
@@ -22,6 +23,14 @@ export const createAdminAccount = asyncHandler(async (req, res) => {
   const passwordHash = await Admin.hashPassword(password);
   const admin = await Admin.create({ name, mobile, passwordHash, role: 'admin' });
 
+  await logAdminAction({
+    req,
+    action: 'admin.create',
+    entityType: 'Admin',
+    entityId: admin._id,
+    changes: { name: admin.name, mobile: admin.mobile, role: admin.role },
+  });
+
   res.status(201).json({ success: true, data: admin });
 });
 
@@ -35,6 +44,14 @@ export const updateAdminAccount = asyncHandler(async (req, res) => {
   if (req.body.name !== undefined) admin.name = req.body.name.trim();
   await admin.save();
 
+  await logAdminAction({
+    req,
+    action: 'admin.update',
+    entityType: 'Admin',
+    entityId: admin._id,
+    changes: { name: admin.name },
+  });
+
   res.status(200).json({ success: true, data: admin });
 });
 
@@ -46,6 +63,14 @@ export const resetAdminPassword = asyncHandler(async (req, res) => {
 
   admin.passwordHash = await Admin.hashPassword(req.body.password);
   await admin.save();
+
+  await logAdminAction({
+    req,
+    action: 'admin.reset_password',
+    entityType: 'Admin',
+    entityId: admin._id,
+    changes: {}, // deliberately never logs the password itself
+  });
 
   res.status(200).json({ success: true, data: admin });
 });
@@ -60,6 +85,14 @@ export const toggleAdminStatus = asyncHandler(async (req, res) => {
   admin.status = admin.status === 'suspended' ? 'active' : 'suspended';
   await admin.save();
 
+  await logAdminAction({
+    req,
+    action: 'admin.status_change',
+    entityType: 'Admin',
+    entityId: admin._id,
+    changes: { status: admin.status },
+  });
+
   res.status(200).json({ success: true, data: admin });
 });
 
@@ -71,6 +104,14 @@ export const deleteAdminAccount = asyncHandler(async (req, res) => {
   if (admin._id.equals(req.admin._id)) throw ApiError.badRequest('You cannot remove your own account.');
 
   await admin.deleteOne();
+
+  await logAdminAction({
+    req,
+    action: 'admin.delete',
+    entityType: 'Admin',
+    entityId: admin._id,
+    changes: { name: admin.name, mobile: admin.mobile },
+  });
 
   res.status(200).json({ success: true, message: 'Admin removed.' });
 });

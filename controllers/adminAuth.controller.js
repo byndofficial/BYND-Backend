@@ -7,7 +7,9 @@ import {
   generateAccessToken,
   generateRefreshToken,
   hashToken,
+  parseDurationToMs,
 } from '../utils/generateTokens.js';
+import { issueCsrfToken, clearCsrfToken } from '../middleware/csrf.js';
 
 const isProd = env.isProduction;
 
@@ -15,7 +17,9 @@ const accessCookieOpts = () => ({
   httpOnly: true,
   secure: isProd,
   sameSite: isProd ? 'none' : 'lax',
-  maxAge: 15 * 60 * 1000, // matches default access token life; harmless if token itself expires sooner
+  // Derived from JWT_ACCESS_EXPIRES_IN so the cookie can never disagree
+  // with the JWT's own expiry, whatever that env var is set to.
+  maxAge: parseDurationToMs(env.jwt.accessExpiresIn),
 });
 
 const refreshCookieOpts = (expiresAt) => ({
@@ -40,11 +44,13 @@ const issueSession = async (admin, req, res) => {
 
   res.cookie('adminAccessToken', accessToken, accessCookieOpts());
   res.cookie('adminRefreshToken', token, refreshCookieOpts(expiresAt));
+  issueCsrfToken(res);
 };
 
 const clearAuthCookies = (res) => {
   res.clearCookie('adminAccessToken');
   res.clearCookie('adminRefreshToken');
+  clearCsrfToken(res);
 };
 
 // POST /api/admin/auth/login
