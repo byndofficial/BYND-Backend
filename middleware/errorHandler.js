@@ -2,14 +2,9 @@ import env from '../config/env.js';
 import logger from '../utils/logger.js';
 import ApiError from '../utils/ApiError.js';
 
-// Must be registered LAST, after all routes and notFound — Express
-// recognizes it as an error handler purely by its 4-argument signature.
-// eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
   let error = err;
 
-  // Normalize known third-party error shapes into ApiError so the
-  // response format is always identical to the client.
   if (!(error instanceof ApiError)) {
     const statusCode = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
 

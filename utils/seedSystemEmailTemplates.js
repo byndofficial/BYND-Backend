@@ -1,9 +1,3 @@
-// Auto-seeds any missing 'system' EmailTemplate docs from
-// utils/emailDefaults.js on every server boot. Idempotent — only creates
-// a type that doesn't exist yet; never touches or overwrites a template
-// an admin has already edited. This is what lets new default templates
-// (e.g. account_deletion) show up automatically without a manual seed
-// script run.
 import EmailTemplate from '../models/EmailTemplate.js';
 import SYSTEM_EMAIL_DEFAULTS from './emailDefaults.js';
 import logger from './logger.js';

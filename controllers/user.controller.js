@@ -30,9 +30,9 @@ export const requestAccountDeletionOtp = asyncHandler(async (req, res) => {
   req.user.deletionOtpAttempts = 0;
   await req.user.save();
 
-  // TODO: add an 'account-deletion-otp' system email template (same place
-  // 'welcome' lives, per auth.controller.js's signup) — { firstName, otp }.
-  await sendSystemEmail('account-deletion-otp', {
+  // 'account_deletion_otp' is a real, editable system template — see
+  // utils/emailDefaults.js — auto-seeded on server boot, no manual step needed.
+  await sendSystemEmail('account_deletion_otp', {
     to: req.user.email,
     data: { firstName: req.user.name.split(' ')[0] || 'there', otp },
   });
@@ -65,6 +65,16 @@ export const deleteAccount = asyncHandler(async (req, res) => {
     user.deletionOtpAttempts += 1;
     await user.save();
     throw ApiError.badRequest('Incorrect code.');
+  }
+
+  // Send the goodbye email before wiping the address below — user.email
+  // is unrecoverable once nulled. 'account_deletion' is a real, editable
+  // system template — see utils/emailDefaults.js.
+  if (user.email) {
+    await sendSystemEmail('account_deletion', {
+      to: user.email,
+      data: { firstName: user.name.split(' ')[0] || 'there' },
+    });
   }
 
   const eraseNote = `Account deleted by customer on ${new Date().toISOString().slice(0, 10)}. Order records retained for accounting/tax purposes only.`;

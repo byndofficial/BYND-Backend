@@ -3,6 +3,8 @@ import connectDB from './config/db.js';
 import logger from './utils/logger.js';
 import app from './app.js';
 import { startScheduledJobs, stopScheduledJobs } from './jobs/scheduler.js';
+import seedSystemEmailTemplates from './utils/seedSystemEmailTemplates.js';
+import seedSystemNotificationTemplates from './utils/seedSystemNotificationTemplates.js';
 
 let server;
 
@@ -10,6 +12,11 @@ const start = async () => {
   // Connect to MongoDB BEFORE accepting any HTTP traffic — there is no
   // useful degraded mode where the API is up but the database isn't.
   await connectDB();
+
+  // Idempotent — only inserts system templates (email + notification)
+  // that don't already exist, so re-deploys never overwrite admin edits.
+  await seedSystemEmailTemplates();
+  await seedSystemNotificationTemplates();
 
   server = app.listen(env.port, () => {
     logger.info(`BYND backend listening on port ${env.port} [${env.nodeEnv}]`);

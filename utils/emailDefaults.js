@@ -1,6 +1,3 @@
-// Default content for system (transactional) email templates. Used both to
-// seed the EmailTemplate collection on server startup (if a type doesn't
-// exist yet) AND to power "Reset to Default" in the admin UI.
 const SUPPORT_SENDER = 'BYND Official <support@byndofficial.in>';
 const ORDERS_SENDER = 'BYND Orders <orders@byndofficial.in>';
 
@@ -111,12 +108,28 @@ const SYSTEM_EMAIL_DEFAULTS = [
     footerText: '',
   },
   {
-    // Previously hardcoded in the admin frontend as a non-editable
-    // reference card. Now a real, editable system template like the rest —
-    // sent from controllers/user.controller.js's deleteAccount.
+    // Step 1 of self-service account deletion (Settings.jsx) — carries the
+    // OTP code. See controllers/user.controller.js's requestAccountDeletionOtp.
+    type: 'account_deletion_otp',
+    statusKey: null,
+    label: 'Account Deletion — Verification Code',
+    description: 'Sent when a customer requests to delete their account, with the confirmation code.',
+    sender: SUPPORT_SENDER,
+    subject: 'Your account deletion code',
+    title: 'Confirm Account Deletion',
+    message:
+      'Hi {firstName}, use the code below to confirm you want to permanently delete your BYND account. This code expires in 10 minutes.\n\n{otp}\n\nIf you didn\u2019t request this, you can safely ignore this email.',
+    buttonText: '',
+    buttonLink: '',
+    footerText: '',
+  },
+  {
+    // Step 2 — sent once deletion is actually completed. Previously
+    // hardcoded in the admin frontend as a non-editable reference card.
+    // Now a real, editable system template like the rest.
     type: 'account_deletion',
     statusKey: null,
-    label: 'Account Deletion',
+    label: 'Account Deletion — Confirmation',
     description: 'Sent when a customer permanently deletes their own account.',
     sender: SUPPORT_SENDER,
     subject: 'Goodbye for Now',
