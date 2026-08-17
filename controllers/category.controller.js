@@ -40,7 +40,15 @@ export const createMainCategory = asyncHandler(async (req, res) => {
     throw ApiError.conflict('A category with this name already exists.');
   }
 
-  const category = await Category.create({ name, slug, icon, order, isActive });
+  // Auto-append to the end of the current order unless the caller
+  // explicitly specifies one (e.g. a future drag-to-reorder UI).
+  let nextOrder = order;
+  if (nextOrder === undefined) {
+    const last = await Category.findOne().sort({ order: -1 }).select('order');
+    nextOrder = last ? last.order + 1 : 0;
+  }
+
+  const category = await Category.create({ name, slug, icon, order: nextOrder, isActive });
   res.status(201).json({ success: true, data: category });
 });
 

@@ -51,7 +51,10 @@ export const listProducts = asyncHandler(async (req, res) => {
 
 // GET /products/:productId
 export const getProductById = asyncHandler(async (req, res) => {
-  const product = await ProductFamily.findOne({ _id: req.params.productId, isActive: true }).populate('sizeChart');
+  const { productId } = req.params;
+  const product =
+    (await ProductFamily.findOne({ _id: productId, isActive: true }).populate('sizeChart')) ||
+    (await ProductFamily.findOne({ 'variants._id': productId, isActive: true }).populate('sizeChart'));
   if (!product) throw ApiError.notFound('Product not found.');
   res.status(200).json({ success: true, data: product });
 });
