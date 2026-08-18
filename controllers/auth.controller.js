@@ -4,6 +4,16 @@ import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { sendSystemEmail } from '../services/email.service.js';
 
+// POST /api/auth/check-mobile   { mobile }
+// Public, rate-limited pre-check so we never fire an SMS OTP for a number
+// that already/doesn't have an account — Login and Signup both call this
+// before touching Firebase.
+export const checkMobile = asyncHandler(async (req, res) => {
+  const phone = `+91${req.body.mobile}`;
+  const exists = await User.exists({ phone });
+  res.status(200).json({ success: true, data: { exists: Boolean(exists) } });
+});
+
 // POST /api/auth/signup
 // The ONE route that legitimately runs without verifyFirebaseToken behind
 // it — a valid Firebase token but no User doc yet is exactly what "signing
@@ -21,7 +31,21 @@ export const signup = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized('Invalid or expired session.');
   }
 
-  const existing = await User.findOne({ firebaseUid: decoded.uid });
+  let existing = await User.findOne({ firebaseUid: decoded.uid });
+
+  // Fallback: this Firebase uid may belong to a different provider
+  // (e.g. Google) than the one the account was originally created with
+  // (e.g. phone OTP). If Google's verified email matches an existing
+  // account, link this uid to it instead of creating a duplicate.
+  if (!existing && decoded.email && decoded.email_verified) {
+    existing = await User.findOne({ email: decoded.email.toLowerCase() });
+    if (existing) {
+      existing.firebaseUid = decoded.uid;
+      existing.lastLoginAt = new Date();
+      await existing.save();
+    }
+  }
+
   if (existing) {
     res.status(200).json({ success: true, data: existing });
     return;
@@ -45,6 +69,63 @@ export const signup = asyncHandler(async (req, res) => {
   });
 
   res.status(201).json({ success: true, data: user });
+});
+
+// POST /api/auth/login
+// Verifies the Firebase token (mobile-OTP or Google) but, unlike signup,
+// NEVER creates an account. If no matching User exists, returns 404 with
+// the decoded profile so the frontend can redirect to Signup pre-filled.
+export const login = asyncHandler(async (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) throw ApiError.unauthorized('Missing or invalid Authorization header.');
+
+  let decoded;
+  try {
+    decoded = await firebaseAuth.verifyIdToken(token);
+  } catch {
+    throw ApiError.unauthorized('Invalid or expired session.');
+  }
+
+  let user = await User.findOne({ firebaseUid: decoded.uid });
+
+  // Fallback: the same person may have originally signed up with a
+  // different Firebase provider (e.g. phone OTP), which gets a different
+  // Firebase uid than this Google sign-in. Firebase's verified email is
+  // trustworthy proof of identity, so if it matches an existing account,
+  // treat this as the same person, link this uid to it going forward, and
+  // persist that link immediately rather than relying on a later save.
+  if (!user && decoded.email && decoded.email_verified) {
+    user = await User.findOne({ email: decoded.email.toLowerCase() });
+    if (user) {
+      user.firebaseUid = decoded.uid;
+      user.lastLoginAt = new Date();
+      await user.save();
+      res.status(200).json({ success: true, data: user });
+      return;
+    }
+  }
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'No account found — please sign up.',
+      code: 'ACCOUNT_NOT_FOUND',
+      data: {
+        name: decoded.name || '',
+        email: decoded.email || '',
+        phone: decoded.phone_number ? decoded.phone_number.replace('+91', '') : '',
+      },
+    });
+  }
+
+  if (user.status !== 'active') {
+    throw ApiError.forbidden('This account is no longer active.');
+  }
+
+  user.lastLoginAt = new Date();
+  await user.save();
+  res.status(200).json({ success: true, data: user });
 });
 
 // GET /api/auth/me

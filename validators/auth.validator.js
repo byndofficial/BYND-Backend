@@ -4,17 +4,36 @@ import { body, param } from 'express-validator';
 // middleware/verifyFirebaseToken.js) — there's no password/login body to
 // validate here. What DOES need validation is the profile/address data the
 // customer submits once authenticated, matching User.js's schema exactly.
+export const checkMobileValidator = [
+  body('mobile').trim().matches(/^[6-9]\d{9}$/).withMessage('Enter a valid 10-digit mobile number.'),
+];
 
+// gmail_remove_dots: false — express-validator's default normalizeEmail()
+// strips dots from the Gmail local-part (a.b@gmail.com -> ab@gmail.com).
+// Firebase's decoded token email is never run through this normalizer, so
+// letting it strip dots here means the email we store diverges from what
+// auth.controller.js matches against on login (decoded.email.toLowerCase()),
+// and the account becomes unreachable via the Google/email fallback lookup.
+// Keep what the user typed (post lowercase/trim) so it always matches
+// decoded.email exactly.
 export const signupValidator = [
   body('name').trim().notEmpty().withMessage('Name is required.').isLength({ max: 80 }),
-  body('email').optional({ nullable: true }).trim().isEmail().withMessage('Enter a valid email.').normalizeEmail(),
+  body('email')
+    .optional({ nullable: true })
+    .trim()
+    .isEmail().withMessage('Enter a valid email.')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('phone').optional({ nullable: true }).trim().isMobilePhone('en-IN').withMessage('Enter a valid phone number.'),
   body('marketingOptIn').optional().isBoolean(),
 ];
 
 export const updateProfileValidator = [
   body('name').optional().trim().notEmpty().withMessage('Name cannot be empty.').isLength({ max: 80 }),
-  body('email').optional({ nullable: true }).trim().isEmail().withMessage('Enter a valid email.').normalizeEmail(),
+  body('email')
+    .optional({ nullable: true })
+    .trim()
+    .isEmail().withMessage('Enter a valid email.')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('marketingOptIn').optional().isBoolean(),
 ];
 
