@@ -2,6 +2,27 @@ import Discount from '../models/Discount.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
+// GET /discounts/public — active, public-facing coupons for storefront
+// display (e.g. PDP "Available Offers"). Only exposes fields safe to show
+// to anyone; usage counters, perUserLimit, etc. stay admin-only.
+export const listPublicDiscounts = asyncHandler(async (req, res) => {
+  const discounts = await Discount.find({ isPublic: true, isEnabled: true });
+  const active = discounts.filter((d) => d.getStatus() === 'active');
+
+  res.json({
+    success: true,
+    data: active.map((d) => ({
+      code: d.code,
+      name: d.name,
+      description: d.description,
+      type: d.type,
+      value: d.value,
+      maxDiscountAmount: d.maxDiscountAmount,
+      minPurchaseAmount: d.minPurchaseAmount,
+    })),
+  });
+});
+
 // Public — lets checkout preview a discount before the order is placed.
 // order.controller.js re-validates independently (and enforces
 // perUserLimit + usedCount) at order creation time, so this is a UX
