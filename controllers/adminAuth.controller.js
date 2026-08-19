@@ -135,7 +135,7 @@ export const logout = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: 'Logged out.' });
 });
 
-// POST /api/admin/auth/logout-all
+// POST/api/admin/auth/logout-all
 export const logoutAll = asyncHandler(async (req, res) => {
   await RefreshToken.updateMany({ admin: req.admin._id, revoked: false }, { revoked: true });
   clearAuthCookies(res);
