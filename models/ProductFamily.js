@@ -53,7 +53,7 @@ const productFamilySchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, default: null, min: 0 },
     badge: { type: String, enum: ['NEW', 'BEST SELLER', 'SALE', null], default: null },
-    description: { type: String, trim: true, maxlength: 600, default: '' },
+    description: { type: String, trim: true, default: '' },
     highlights: { type: [highlightSchema], default: [] },
 
     sizeChart: { type: mongoose.Schema.Types.ObjectId, ref: 'SizeChart', default: null },
