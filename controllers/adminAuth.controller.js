@@ -44,7 +44,11 @@ const issueSession = async (admin, req, res) => {
 
   res.cookie('adminAccessToken', accessToken, accessCookieOpts());
   res.cookie('adminRefreshToken', token, refreshCookieOpts(expiresAt));
-  issueCsrfToken(res);
+  // issueCsrfToken both sets the cookie AND returns the raw token — the
+  // caller needs the return value to put in the JSON body, since the
+  // frontend can't read this cookie directly (cross-origin: Railway vs
+  // Vercel domain) and has no other way to learn the current CSRF token.
+  return issueCsrfToken(res);
 };
 
 const clearAuthCookies = (res) => {
@@ -70,9 +74,9 @@ export const login = asyncHandler(async (req, res) => {
   admin.lastLoginAt = new Date();
   await admin.save();
 
-  await issueSession(admin, req, res);
+  const csrfToken = await issueSession(admin, req, res);
 
-  res.status(200).json({ success: true, data: admin });
+  res.status(200).json({ success: true, data: admin, csrfToken });
 });
 
 // POST /api/admin/auth/refresh
@@ -98,9 +102,9 @@ export const refresh = asyncHandler(async (req, res) => {
   stored.revoked = true;
   await stored.save();
 
-  await issueSession(admin, req, res);
+  const csrfToken = await issueSession(admin, req, res);
 
-  res.status(200).json({ success: true, data: admin });
+  res.status(200).json({ success: true, data: admin, csrfToken });
 });
 
 // GET /api/admin/auth/me
@@ -135,7 +139,7 @@ export const logout = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: 'Logged out.' });
 });
 
-// POST/api/admin/auth/logout-all
+// POST /api/admin/auth/logout-all
 export const logoutAll = asyncHandler(async (req, res) => {
   await RefreshToken.updateMany({ admin: req.admin._id, revoked: false }, { revoked: true });
   clearAuthCookies(res);
