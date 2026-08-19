@@ -52,7 +52,7 @@ export const ORDER_STATUSES = [
   'cancelled',
 ];
 
-export const PAYMENT_STATUSES = ['pending', 'paid', 'refunded', 'cod'];
+export const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cod'];
 
 export const ADMIN_ROLES = ['super_admin', 'admin'];
 

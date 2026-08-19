@@ -71,9 +71,12 @@ export const sendBroadcast = async ({ templateId, audience, channels = ['inApp']
 };
 
 // Fires a system (order-lifecycle) notification to a single user —
-// resolves the matching template by event/statusKey (falls back to
-// order-fallback if no exact statusKey match exists) and substitutes
-// {orderNumber}/{status}.
+// resolves the matching template by event/statusKey (falls back to the
+// statusKey: null default if no exact match exists) and substitutes
+// {orderNumber}/{status}/etc. `data.orderId` (the Mongo _id) is what the
+// link points at — the customer-facing GET /orders/:orderId route only
+// looks orders up by _id, never by the human-facing orderCode, so linking
+// to orderNumber here would 404 for the customer.
 export const sendSystemNotification = async ({ userId, event, statusKey = null, data = {} }) => {
   const template =
     (await NotificationTemplate.findOne({ kind: 'system', event, statusKey })) ||
@@ -89,7 +92,7 @@ export const sendSystemNotification = async ({ userId, event, statusKey = null, 
     type: 'order',
     title: renderText(template.title, data),
     message: renderText(template.message, data),
-    link: data.orderNumber ? `/orders/${data.orderNumber}` : null,
+    link: data.orderId ? `/orders/${data.orderId}` : null,
     channels: ['inApp'],
     sourceTemplate: template._id,
   });

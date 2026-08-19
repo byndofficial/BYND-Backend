@@ -44,7 +44,10 @@ const resolveOrderItem = async (line) => {
 // Re-validates a coupon against the real Discount schema and, when a user
 // is known, enforces perUserLimit against their past orders. Returns
 // { discountAmount, couponCode, discountDoc } — discountDoc is null when
-// no code was applied, and is used afterward to increment usedCount.
+// no code was applied. NOTE: this only checks eligibility. Spending the
+// coupon (incrementing usedCount) happens separately, and only once a
+// payment is actually confirmed — see the paymentMethod branch below and
+// payment.controller.js's awardCouponIfPresent.
 const resolveCoupon = async (code, subtotal, userId) => {
   if (!code) return { discountAmount: 0, couponCode: null, discountDoc: null };
 
@@ -84,6 +87,14 @@ const resolveCoupon = async (code, subtotal, userId) => {
 
 const generateOrderCode = () => `BYND${Date.now().toString().slice(-8)}`;
 
+// An order only "counts" as real to the customer once it's either COD
+// (confirmed at placement) or an online payment that's actually been
+// confirmed as paid. A UPI/Card order sitting at paymentStatus: 'pending'
+// or 'failed' means the person closed the tab, backed out, or the
+// payment didn't go through — it must never show up in "My Orders" as if
+// it were placed. Used by getMyOrders / getOrderById below.
+const visibleToCustomer = { $or: [{ paymentMethod: 'cod' }, { paymentStatus: 'paid' }] };
+
 export const createOrder = asyncHandler(async (req, res) => {
   const { items = [], addressId, address, paymentMethod, couponCode } = req.body;
 
@@ -105,7 +116,8 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   const resolvedItems = await Promise.all(items.map(resolveOrderItem));
   const subtotal = resolvedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const deliveryFee = DELIVERY_FEE;
+  // Delivery fee only applies to Cash on Delivery — UPI/card orders ship free.
+  const deliveryFee = paymentMethod === 'cod' ? DELIVERY_FEE : 0;
   const { discountAmount, couponCode: appliedCode, discountDoc } = await resolveCoupon(
     couponCode,
     subtotal,
@@ -119,7 +131,14 @@ export const createOrder = asyncHandler(async (req, res) => {
     items: resolvedItems,
     address: orderAddress,
     paymentMethod,
-    paymentStatus: 'pending',
+    // COD is confirmed the instant it's placed — payment happens at the
+    // doorstep, nothing to wait on. UPI/Card stay 'pending' until Razorpay
+    // actually confirms the payment (verifyPayment / handleWebhook in
+    // payment.controller.js), and until then this order is filtered out
+    // of both visibleToCustomer here and isRealOrder in
+    // adminOrder.controller.js — so a failed or abandoned online payment
+    // never appears as a placed order anywhere.
+    paymentStatus: paymentMethod === 'cod' ? 'cod' : 'pending',
     subtotal,
     discountAmount,
     couponCode: appliedCode,
@@ -127,10 +146,11 @@ export const createOrder = asyncHandler(async (req, res) => {
     total,
   });
 
-  // Coupon is "spent" once an order successfully exists against it —
-  // mirrors the admin panel's usedCount, which must only ever move
-  // server-side on real order placement.
-  if (discountDoc) {
+  // Coupon is "spent" immediately for COD, since the order is real the
+  // moment it's created. For online payments this is deliberately
+  // deferred to payment confirmation — an order that never gets paid must
+  // never consume a coupon use. See payment.controller.js.
+  if (discountDoc && paymentMethod === 'cod') {
     await Discount.updateOne({ _id: discountDoc._id }, { $inc: { usedCount: 1 } });
   }
 
@@ -152,12 +172,18 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 
 export const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).lean();
+  const orders = await Order.find({ user: req.user._id, ...visibleToCustomer })
+    .sort({ createdAt: -1 })
+    .lean();
   res.json({ success: true, data: orders });
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {
-  const order = await Order.findOne({ _id: req.params.orderId, user: req.user._id }).lean();
+  const order = await Order.findOne({
+    _id: req.params.orderId,
+    user: req.user._id,
+    ...visibleToCustomer,
+  }).lean();
   if (!order) throw new ApiError(404, 'Order not found.');
   res.json({ success: true, data: order });
 });

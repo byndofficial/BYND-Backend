@@ -1,13 +1,3 @@
-// Fail-fast boot validation. Every environment variable the app depends on
-// is checked ONCE here, at import time — if anything required is missing,
-// the process exits immediately with a clear message instead of failing
-// confusingly later (e.g. a Cloudinary upload crashing mid-request because
-// CLOUDINARY_API_KEY was never set).
-//
-// Every other file in the codebase should import config from here rather
-// than reading process.env directly, so there is exactly one source of
-// truth for "what env vars exist and what they're named."
-
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -46,8 +36,11 @@ const env = {
 
   mongodbUri: process.env.MONGODB_URI,
 
-  storefrontOrigin: process.env.STOREFRONT_ORIGIN,
-  adminOrigin: process.env.ADMIN_ORIGIN,
+  // Comma-separated in .env so both localhost and deployed frontend
+  // origins can be allowed at once, e.g.:
+  // STOREFRONT_ORIGIN=http://localhost:3004,https://your-userside.vercel.app
+  storefrontOrigins: process.env.STOREFRONT_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
+  adminOrigins: process.env.ADMIN_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
 
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
@@ -59,7 +52,6 @@ const env = {
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // .env stores literal \n escapes — convert back to real newlines.
     privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
   },
 

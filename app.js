@@ -17,17 +17,17 @@ import { handleWebhook } from './routes/payment.routes.js';
 
 const app = express();
 
-// Trust the first proxy hop (Render/most PaaS sit behind one) — needed
-// for correct client IPs in rate limiting and logging.
+// Trust the first proxy hop (Render/Railway/most PaaS sit behind one) —
+// needed for correct client IPs in rate limiting and logging.
 app.set('trust proxy', 1);
 
 // ---------- Security headers ----------
 app.use(helmet());
 
 // ---------- CORS — explicit allowlist, never a wildcard ----------
-// Only the two known frontend origins may call this API with credentials
-// (cookies). Anything else is rejected by the browser's preflight check.
-const allowedOrigins = [env.storefrontOrigin, env.adminOrigin];
+// storefrontOrigins/adminOrigins are arrays (comma-separated in .env) so
+// both localhost and the deployed Vercel URLs can be allowed at once.
+const allowedOrigins = [...env.storefrontOrigins, ...env.adminOrigins];
 
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), handleWebhook);
 
@@ -48,9 +48,8 @@ app.use(
 
 // ---------- Body parsing ----------
 // Razorpay webhook signature verification needs the RAW body, so that
-// route (once added under /api/payments/webhook) must use
-// express.raw({ type: 'application/json' }) on itself, mounted BEFORE this
-// json() parser runs on it — see routes/payment.routes.js when it's built.
+// route (mounted above) uses express.raw({ type: 'application/json' }) on
+// itself, BEFORE this json() parser runs on it.
 // 15mb — several routes (product/category/hero-slide/size-chart image
 // uploads) send images as base64 data URLs inside JSON bodies. Base64
 // inflates payload size by ~33%, and admins can submit multiple images in

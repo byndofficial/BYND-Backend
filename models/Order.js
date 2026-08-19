@@ -52,6 +52,18 @@ const orderSchema = new mongoose.Schema(
     status: { type: String, enum: ORDER_STATUSES, default: 'processing', index: true },
 
     paymentMethod: { type: String, required: true, trim: true },
+    // 'pending'  -> UPI/Card order created but payment not yet confirmed.
+    //               Invisible to the customer and to the main admin list
+    //               (see visibleToCustomer / isRealOrder filters in the
+    //               controllers) until it flips to 'paid'.
+    // 'paid'     -> UPI/Card, payment confirmed by Razorpay.
+    // 'failed'   -> UPI/Card, payment explicitly failed or signature
+    //               mismatch. Left in place for support visibility, then
+    //               swept up by the TTL index below.
+    // 'cod'      -> Cash on Delivery, confirmed at placement. Flips to
+    //               'paid' only once the admin marks the order delivered
+    //               (payment is collected at the doorstep).
+    // 'refunded' -> reserved for future use (cancellations/returns).
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: 'pending' },
     razorpayOrderId: { type: String, default: null },
     razorpayPaymentId: { type: String, default: null },
@@ -67,13 +79,32 @@ const orderSchema = new mongoose.Schema(
     deliveredAt: { type: Date, default: null },
     cancelledAt: { type: Date, default: null },
 
+    invoiceNumber: { type: String, default: null },
+
     // Admin-only, never exposed to the storefront API.
     adminNotes: { type: String, trim: true, maxlength: 1000, default: '' },
+
+    trackingLink: { type: String, trim: true, default: null },
   },
   { timestamps: true },
 );
 
 orderSchema.index({ createdAt: -1 });
+
+// Auto-deletes an order that never got paid — closed tab, expired
+// checkout, or a payment that failed. Only applies to orders still
+// waiting on UPI/Card confirmation; COD orders and paid orders are
+// untouched (the partial filter is what makes it conditional).
+orderSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 3600, // 1 hour grace period for slow checkouts
+    partialFilterExpression: {
+      paymentStatus: { $in: ['pending', 'failed'] },
+      paymentMethod: { $in: ['upi', 'card'] },
+    },
+  },
+);
 
 const Order = mongoose.model('Order', orderSchema);
 
