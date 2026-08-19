@@ -10,7 +10,7 @@ const rateLimitHandler = (req, res, next) => {
 // GENERAL — most browse/read traffic. Generous, mainly to blunt scraping
 // and accidental client-side retry storms.
 export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, 
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
