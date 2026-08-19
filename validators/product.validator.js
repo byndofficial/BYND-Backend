@@ -37,7 +37,21 @@ export const createProductValidator = [
   body('price').isFloat({ min: 0 }).withMessage('Enter a valid price.'),
   body('costPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Enter a valid cost price.'),
   body('badge').optional({ nullable: true }).isIn(['NEW', 'BEST SELLER', 'SALE']),
-  body('description').optional({ nullable: true }).trim().isLength({ max: 600 }).withMessage('Description must be 600 characters or fewer.'),
+  // description may come from a rich-text editor, so the stored value is
+  // HTML (e.g. "<p><strong>Fabric:</strong> ...</p>") — tags and entities
+  // count toward .length but are invisible to the admin typing it. Strip
+  // tags before checking length so the 600-char budget matches what's
+  // actually visible, not the markup overhead around it.
+  body('description')
+    .optional({ nullable: true })
+    .trim()
+    .custom((value) => {
+      const visibleText = value.replace(/<[^>]*>/g, '');
+      if (visibleText.length > 600) {
+        throw new Error('Description must be 600 characters or fewer.');
+      }
+      return true;
+    }),
   body('sizeChartId').optional({ nullable: true }).isMongoId(),
   ...variantValidator,
   ...highlightValidator,
