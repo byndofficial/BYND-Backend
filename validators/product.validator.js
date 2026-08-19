@@ -37,7 +37,7 @@ export const createProductValidator = [
   body('price').isFloat({ min: 0 }).withMessage('Enter a valid price.'),
   body('costPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Enter a valid cost price.'),
   body('badge').optional({ nullable: true }).isIn(['NEW', 'BEST SELLER', 'SALE']),
-  body('description').optional().trim().isLength({ max: 600 }),
+  body('description').optional({ nullable: true }).trim().isLength({ max: 600 }).withMessage('Description must be 600 characters or fewer.'),
   body('sizeChartId').optional({ nullable: true }).isMongoId(),
   ...variantValidator,
   ...highlightValidator,
