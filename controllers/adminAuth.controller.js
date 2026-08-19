@@ -104,8 +104,25 @@ export const refresh = asyncHandler(async (req, res) => {
 });
 
 // GET /api/admin/auth/me
+//
+// This is the ONLY thing that runs on a fresh page load / hard navigation
+// (e.g. opening the Edit Product page directly). Before this fix it just
+// confirmed the access-token cookie was valid and returned the admin doc —
+// it never re-issued a CSRF token. Since `csrfTokenMem` in the frontend's
+// api.js is a plain in-memory variable, it resets to null on every reload,
+// and the ONLY way it was ever repopulated was via the `csrfToken` field
+// in a login/refresh response body. So: valid session, but no CSRF token
+// in memory -> first PATCH/POST/DELETE gets a 403 from requireCsrfToken,
+// even though the user is fully authenticated.
+//
+// Fix: issue (rotate) a CSRF token here too, and include it in the body.
+// No frontend change is required for this to take effect — api.js's
+// rawFetch() already does `if (data.csrfToken) { csrfTokenMem = ... }`
+// on every response, login/refresh included, so it picks this up for free
+// the next time apiGetMe() runs on app load.
 export const getMe = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, data: req.admin });
+  const csrfToken = issueCsrfToken(res);
+  res.status(200).json({ success: true, data: req.admin, csrfToken });
 });
 
 // POST /api/admin/auth/logout
