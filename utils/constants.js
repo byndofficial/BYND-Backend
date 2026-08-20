@@ -41,7 +41,7 @@ export const PRODUCT_COLORS = [
   { id: 'off-white', name: 'Off White', hex: '#fffae7' },
 ];
 
-export const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+export const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 
 export const ORDER_STATUSES = [
   'processing',
