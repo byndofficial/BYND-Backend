@@ -9,7 +9,6 @@ export const PRODUCT_COLORS = [
   { id: 'navy-blue', name: 'Navy Blue', hex: '#00080f' },
   { id: 'gray', name: 'Gray', hex: '#c3c3c3' },
   { id: 'charcoal', name: 'Charcoal', hex: '#6e6e6e' },
-  { id: 'sky-blue', name: 'Sky Blue', hex: '#00c2e0' },
   { id: 'yellow', name: 'Yellow', hex: '#ffe381' },
   { id: 'bottle-green', name: 'Bottle Green', hex: '#021705' },
   { id: 'royal-blue', name: 'Royal Blue', hex: '#0b1442' },
@@ -39,6 +38,9 @@ export const PRODUCT_COLORS = [
   { id: 'mint', name: 'Mint', hex: '#c7fff8' },
   { id: 'peach', name: 'Peach', hex: '#ffd7b8' },
   { id: 'off-white', name: 'Off White', hex: '#fffae7' },
+    { id: 'black-melange', name: 'Black Melange', hex: '#25262a' },
+  { id: 'navy-melange', name: 'Navy Melange', hex: '#0a1525' },
+  { id: 'purple-melange', name: 'Purple Melange', hex: '#3f2e44' },
 ];
 
 export const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
