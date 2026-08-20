@@ -47,8 +47,8 @@ export const createProductValidator = [
     .trim()
     .custom((value) => {
       const visibleText = value.replace(/<[^>]*>/g, '');
-      if (visibleText.length > 600) {
-        throw new Error('Description must be 600 characters or fewer.');
+      if (visibleText.length > 1500) {
+        throw new Error('Description must be 1500 characters or fewer.');
       }
       return true;
     }),
