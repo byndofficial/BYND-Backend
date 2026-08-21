@@ -4,11 +4,12 @@ import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { uploadImage, deleteImage, publicIdFromUrl } from '../services/cloudinary.service.js';
 
+// Plain scalar fields, copied straight from req.body when present.
+// headlineLines is handled separately below — it arrives as a JSON
+// string (FormData can't carry nested arrays) and needs parsing before
+// it can be assigned, unlike everything else in this list.
 const HERO_SLIDE_FIELDS = [
   'eyebrow',
-  'titlePre',
-  'titleAccent',
-  'titlePost',
   'subtext',
   'badgeLine1',
   'badgeLine2',
@@ -26,6 +27,18 @@ const HERO_SLIDE_FIELDS = [
   'order',
   'isActive',
 ];
+
+// The homepage.validator.js custom validator already confirmed this
+// parses and fits within size limits before this ever runs — this
+// try/catch is just defense in depth against an unexpected shape.
+const parseHeadlineLines = (raw) => {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 /* =========================================================
    PUBLIC (storefront) — Home.jsx / Login.jsx / Signup.jsx
@@ -77,6 +90,9 @@ export const createHeroSlide = asyncHandler(async (req, res) => {
   HERO_SLIDE_FIELDS.forEach((field) => {
     if (req.body[field] !== undefined) payload[field] = req.body[field];
   });
+  if (req.body.headlineLines !== undefined) {
+    payload.headlineLines = parseHeadlineLines(req.body.headlineLines);
+  }
 
   const slide = await HeroSlide.create({ ...payload, order: nextOrder, image });
   res.status(201).json({ success: true, data: slide });
@@ -92,6 +108,9 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
   HERO_SLIDE_FIELDS.forEach((field) => {
     if (req.body[field] !== undefined) slide[field] = req.body[field];
   });
+  if (req.body.headlineLines !== undefined) {
+    slide.headlineLines = parseHeadlineLines(req.body.headlineLines);
+  }
 
   if (req.file) {
     const previousPublicId = publicIdFromUrl(slide.image);
@@ -121,10 +140,6 @@ export const deleteHeroSlide = asyncHandler(async (req, res) => {
 });
 
 // PATCH /api/homepage/admin/hero-slides/reorder   { order: [id, id, ...] }
-// Rewrites every slide's `order` field to match the array's sequence.
-// Backs both drag-reordering and HomepageManager's up/down arrows — the
-// frontend just swaps two ids' positions client-side and sends the whole
-// new sequence here.
 export const reorderHeroSlides = asyncHandler(async (req, res) => {
   const { order } = req.body;
 
@@ -140,11 +155,6 @@ export const reorderHeroSlides = asyncHandler(async (req, res) => {
 });
 
 // PATCH /api/homepage/admin/auth-hero/:page   (page: 'login' | 'signup')
-// Multipart, `image` file optional. Also always accepts focalX/focalY —
-// this route sits behind upload.single('image') so the frontend always
-// sends FormData, even for a focal-only drag update with no new file.
-// Lazily creates the singleton doc on first use. Sending image: 'null'
-// with no file clears the image back to the gradient fallback.
 export const updateAuthHeroImage = asyncHandler(async (req, res) => {
   const { page } = req.params;
 
@@ -168,7 +178,6 @@ export const updateAuthHeroImage = asyncHandler(async (req, res) => {
     doc[page] = { image: null, focalX: 50, focalY: 50 };
     if (previousPublicId) await deleteImage(previousPublicId);
   } else {
-    // Focal-only update — keep the existing image, just move the anchor.
     doc[page] = { image: doc[page]?.image ?? null, focalX: nextFocalX, focalY: nextFocalY };
   }
 
