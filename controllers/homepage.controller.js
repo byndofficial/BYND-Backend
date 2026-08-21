@@ -18,6 +18,11 @@ const HERO_SLIDE_FIELDS = [
   'secondaryCtaLink',
   'contentVAlign',
   'contentHAlign',
+  'focalDesktopX',
+  'focalDesktopY',
+  'focalMobileX',
+  'focalMobileY',
+  'overlayStrength',
   'order',
   'isActive',
 ];
@@ -34,12 +39,16 @@ export const getPublicHeroSlides = asyncHandler(async (req, res) => {
 
 // GET /api/homepage/auth-hero — singleton doc; never 404s, just returns
 // nulls if nothing's been uploaded yet so Login/Signup can fall back to
-// their branded gradient.
+// their branded gradient. Also serves the admin panel (adminAuthHeroStore
+// reads this same public endpoint — no separate admin GET exists).
 export const getPublicAuthHero = asyncHandler(async (req, res) => {
   const doc = await AuthHeroContent.findOne();
   res.status(200).json({
     success: true,
-    data: { login: doc?.login || { image: null }, signup: doc?.signup || { image: null } },
+    data: {
+      login: doc?.login || { image: null, focalX: 50, focalY: 50 },
+      signup: doc?.signup || { image: null, focalX: 50, focalY: 50 },
+    },
   });
 });
 
@@ -131,23 +140,36 @@ export const reorderHeroSlides = asyncHandler(async (req, res) => {
 });
 
 // PATCH /api/homepage/admin/auth-hero/:page   (page: 'login' | 'signup')
-// Multipart, `image` file optional. Lazily creates the singleton doc on
-// first use. Sending image: 'null' with no file clears it.
+// Multipart, `image` file optional. Also always accepts focalX/focalY —
+// this route sits behind upload.single('image') so the frontend always
+// sends FormData, even for a focal-only drag update with no new file.
+// Lazily creates the singleton doc on first use. Sending image: 'null'
+// with no file clears the image back to the gradient fallback.
 export const updateAuthHeroImage = asyncHandler(async (req, res) => {
   const { page } = req.params;
 
   let doc = await AuthHeroContent.findOne();
-  if (!doc) doc = await AuthHeroContent.create({ login: { image: null }, signup: { image: null } });
+  if (!doc) {
+    doc = await AuthHeroContent.create({
+      login: { image: null, focalX: 50, focalY: 50 },
+      signup: { image: null, focalX: 50, focalY: 50 },
+    });
+  }
 
   const previousPublicId = publicIdFromUrl(doc[page]?.image);
+  const nextFocalX = req.body.focalX !== undefined ? Number(req.body.focalX) : doc[page]?.focalX ?? 50;
+  const nextFocalY = req.body.focalY !== undefined ? Number(req.body.focalY) : doc[page]?.focalY ?? 50;
 
   if (req.file) {
     const uploaded = await uploadImage(req.file.buffer, 'auth-hero');
-    doc[page] = { image: uploaded.url };
+    doc[page] = { image: uploaded.url, focalX: nextFocalX, focalY: nextFocalY };
     if (previousPublicId) await deleteImage(previousPublicId);
   } else if (req.body.image === 'null') {
-    doc[page] = { image: null };
+    doc[page] = { image: null, focalX: 50, focalY: 50 };
     if (previousPublicId) await deleteImage(previousPublicId);
+  } else {
+    // Focal-only update — keep the existing image, just move the anchor.
+    doc[page] = { image: doc[page]?.image ?? null, focalX: nextFocalX, focalY: nextFocalY };
   }
 
   await doc.save();

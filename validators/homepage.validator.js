@@ -22,6 +22,11 @@ export const createHeroSlideValidator = [
   body('secondaryCtaLink').optional().trim(),
   body('contentVAlign').optional().isIn(['top', 'center', 'bottom']),
   body('contentHAlign').optional().isIn(['left', 'center', 'right']),
+  body('focalDesktopX').optional().isFloat({ min: 0, max: 100 }),
+  body('focalDesktopY').optional().isFloat({ min: 0, max: 100 }),
+  body('focalMobileX').optional().isFloat({ min: 0, max: 100 }),
+  body('focalMobileY').optional().isFloat({ min: 0, max: 100 }),
+  body('overlayStrength').optional().isFloat({ min: 0, max: 100 }),
   body('order').optional().isInt(),
   body('isActive').optional().isBoolean(),
 ];
@@ -38,4 +43,6 @@ export const reorderHeroSlidesValidator = [
 
 export const updateAuthHeroValidator = [
   param('page').isIn(['login', 'signup']).withMessage('Page must be "login" or "signup".'),
+  body('focalX').optional().isFloat({ min: 0, max: 100 }),
+  body('focalY').optional().isFloat({ min: 0, max: 100 }),
 ];

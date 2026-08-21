@@ -22,13 +22,7 @@ import {
 
 const router = Router();
 
-// This single router is mounted once, at '/homepage' — public storefront
-// reads live at the top level, admin writes live under an internal
-// '/admin' prefix and are individually gated by verifyAdminToken (rather
-// than splitting into a second adminHomepage.routes.js file, since public
-// GETs and admin CRUD both operate on the exact same two collections).
-
-/* ---------- Public: Home.jsx / Login.jsx / Signup.jsx ---------- */
+/* ---------- Public: Home.jsx / Login.jsx / Signup.jsx (also read by the admin panel) ---------- */
 router.get('/hero-slides', getPublicHeroSlides);
 router.get('/auth-hero', getPublicAuthHero);
 
