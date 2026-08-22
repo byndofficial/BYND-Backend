@@ -5,7 +5,7 @@ const ELEMENT_TYPES = ['heading', 'subheading', 'paragraph', 'button'];
 const ALIGNS = ['left', 'center', 'right'];
 const MAX_ELEMENTS = 14;
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-const BANNER_HEIGHT_MODES = ['auto', 'small', 'medium', 'large', 'custom'];
+const BANNER_HEIGHT_MODES = ['auto', 'small', 'medium', 'large', 'fullscreen', 'custom'];
 
 /* =========================================================
    Hero slides
@@ -28,10 +28,6 @@ const validateLayout = (layout, label) => {
   }
 };
 
-// `elements` arrives as a JSON string (FormData can't carry nested
-// arrays) — parse and shape-check it here, once, so the controller can
-// trust it. Throwing inside a custom validator fails the field with that
-// message.
 const validateElements = (value) => {
   let parsed;
   try {
@@ -93,12 +89,10 @@ export const updateAuthHeroValidator = [
    Homepage Builder (sections layout)
    ========================================================= */
 
-const HEIGHT_MODES = ['auto', 'small', 'medium', 'large', 'fullscreen', 'custom'];
-
 export const saveHomepageLayoutValidator = [
   body('sections').isArray({ min: 1 }).withMessage('Sections list is required.'),
   body('sections.*.id').isString().notEmpty(),
-  body('sections.*.type').isIn(['hero', 'categories', 'bestSellers', 'newArrivals', 'banner']),
+  body('sections.*.type').isIn(['hero', 'categories', 'bestSellers', 'newArrivals', 'banner', 'ticker']),
   body('sections.*.isActive').optional().isBoolean(),
 
   body('sections.*.heroSettings.heightMode').optional().isIn(['default', 'custom']),
@@ -106,11 +100,9 @@ export const saveHomepageLayoutValidator = [
   body('sections.*.heroSettings.customHeightMobile').optional().isInt({ min: 180, max: 600 }),
 
   body('sections.*.bannerSettings.layout').optional().isIn(['single', 'split']),
-  body('sections.*.bannerSettings.heightMode').optional().isIn(HEIGHT_MODES),
+  body('sections.*.bannerSettings.heightMode').optional().isIn(BANNER_HEIGHT_MODES),
   body('sections.*.bannerSettings.customHeight').optional().isInt({ min: 80, max: 1000 }),
   body('sections.*.bannerSettings.fullBleed').optional().isBoolean(),
-  body('sections.*.bannerSettings.spacingTop').optional().isIn(SPACING_OPTIONS),
-  body('sections.*.bannerSettings.spacingBottom').optional().isIn(SPACING_OPTIONS),
   body('sections.*.bannerSettings.gap').optional().isIn(SPACING_OPTIONS),
   body('sections.*.bannerSettings.autoplay').optional().isBoolean(),
   body('sections.*.bannerSettings.autoplayDelay').optional().isInt({ min: 2000, max: 15000 }),
@@ -119,7 +111,24 @@ export const saveHomepageLayoutValidator = [
   body('sections.*.bannerSettings.blocks.*.image').if(body('sections.*.bannerSettings.blocks').exists()).isString().notEmpty(),
   body('sections.*.bannerSettings.blocks.*.focalX').optional().isFloat({ min: 0, max: 100 }),
   body('sections.*.bannerSettings.blocks.*.focalY').optional().isFloat({ min: 0, max: 100 }),
+
+  body('sections.*.tickerSettings.mode').optional().isIn(['scroll', 'static']),
+  body('sections.*.tickerSettings.speed').optional().isInt({ min: 10, max: 120 }),
+  body('sections.*.tickerSettings.direction').optional().isIn(['left', 'right']),
+  body('sections.*.tickerSettings.backgroundColor').optional().isString(),
+  body('sections.*.tickerSettings.textColor').optional().isString(),
+  body('sections.*.tickerSettings.fontSize').optional().isInt({ min: 10, max: 24 }),
+  body('sections.*.tickerSettings.separator').optional().isString().isLength({ max: 10 }),
+  body('sections.*.tickerSettings.messages').optional().isArray(),
+  body('sections.*.tickerSettings.messages.*.id').if(body('sections.*.tickerSettings.messages').exists()).isString().notEmpty(),
+  body('sections.*.tickerSettings.messages.*.text')
+    .if(body('sections.*.tickerSettings.messages').exists())
+    .isString()
+    .notEmpty()
+    .isLength({ max: 200 }),
+  body('sections.*.tickerSettings.messages.*.link').optional().isString(),
 ];
+
 /* =========================================================
    Featured products (Best Sellers / New Arrivals picks)
    ========================================================= */

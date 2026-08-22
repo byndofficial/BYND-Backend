@@ -7,10 +7,6 @@ import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { uploadImage, deleteImage, publicIdFromUrl } from '../services/cloudinary.service.js';
 
-// Plain scalar fields, copied straight from req.body when present.
-// `elements` is handled separately below — it arrives as a JSON string
-// (FormData can't carry nested arrays) and needs parsing before it can
-// be assigned, unlike everything else in this list.
 const HERO_SLIDE_FIELDS = [
   'focalDesktopX',
   'focalDesktopY',
@@ -21,9 +17,6 @@ const HERO_SLIDE_FIELDS = [
   'isActive',
 ];
 
-// The homepage.validator.js custom validator already confirmed this
-// parses and fits within size/shape limits before this ever runs — this
-// try/catch is just defense in depth against an unexpected shape.
 const parseElements = (raw) => {
   try {
     const parsed = JSON.parse(raw);
@@ -37,15 +30,11 @@ const parseElements = (raw) => {
    PUBLIC (storefront) — Home.jsx / Login.jsx / Signup.jsx
    ========================================================= */
 
-// GET /api/homepage/hero-slides — active slides only, in display order.
 export const getPublicHeroSlides = asyncHandler(async (req, res) => {
   const slides = await HeroSlide.find({ isActive: true }).sort({ order: 1 });
   res.status(200).json({ success: true, data: slides });
 });
 
-// GET /api/homepage/auth-hero — singleton doc; never 404s, just returns
-// nulls if nothing's been uploaded yet so Login/Signup can fall back to
-// their branded gradient.
 export const getPublicAuthHero = asyncHandler(async (req, res) => {
   const doc = await AuthHeroContent.findOne();
   res.status(200).json({
@@ -61,13 +50,11 @@ export const getPublicAuthHero = asyncHandler(async (req, res) => {
    ADMIN: Hero slides — HomepageManager.jsx
    ========================================================= */
 
-// GET /api/homepage/admin/hero-slides — every slide, active or hidden.
 export const listHeroSlides = asyncHandler(async (req, res) => {
   const slides = await HeroSlide.find().sort({ order: 1 });
   res.status(200).json({ success: true, data: slides });
 });
 
-// POST /api/homepage/admin/hero-slides — multipart, `image` file optional.
 export const createHeroSlide = asyncHandler(async (req, res) => {
   let image = null;
   if (req.file) {
@@ -90,9 +77,6 @@ export const createHeroSlide = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: slide });
 });
 
-// PATCH /api/homepage/admin/hero-slides/:slideId — partial update. A new
-// `image` file replaces (and deletes) the old Cloudinary asset; sending
-// image: 'null' with no file clears it back to the gradient fallback.
 export const updateHeroSlide = asyncHandler(async (req, res) => {
   const slide = await HeroSlide.findById(req.params.slideId);
   if (!slide) throw ApiError.notFound('Hero slide not found.');
@@ -119,7 +103,6 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: slide });
 });
 
-// DELETE /api/homepage/admin/hero-slides/:slideId
 export const deleteHeroSlide = asyncHandler(async (req, res) => {
   const slide = await HeroSlide.findById(req.params.slideId);
   if (!slide) throw ApiError.notFound('Hero slide not found.');
@@ -131,7 +114,6 @@ export const deleteHeroSlide = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: 'Slide deleted.' });
 });
 
-// PATCH /api/homepage/admin/hero-slides/reorder   { order: [id, id, ...] }
 export const reorderHeroSlides = asyncHandler(async (req, res) => {
   const { order } = req.body;
 
@@ -146,7 +128,6 @@ export const reorderHeroSlides = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: updated });
 });
 
-// PATCH /api/homepage/admin/auth-hero/:page   (page: 'login' | 'signup')
 export const updateAuthHeroImage = asyncHandler(async (req, res) => {
   const { page } = req.params;
 
@@ -181,6 +162,7 @@ export const updateAuthHeroImage = asyncHandler(async (req, res) => {
 /* =========================================================
    Homepage Builder (sections layout)
    ========================================================= */
+
 const defaultSections = () => [
   { id: 'hero', type: 'hero', isActive: true, heroSettings: {} },
   { id: 'categories', type: 'categories', isActive: true },
@@ -188,8 +170,12 @@ const defaultSections = () => [
   { id: 'newArrivals', type: 'newArrivals', isActive: true },
 ];
 
+// Old schema variants stored entries with shapes this build no longer
+// understands (e.g. { type: 'fixed', key }, or fixedSettings on
+// categories/bestSellers/newArrivals). Detect that and reset to the
+// current default layout instead of crashing the admin on stale data.
 const isValidSection = (s) =>
-  s && typeof s === 'object' && ['hero', 'categories', 'bestSellers', 'newArrivals', 'banner'].includes(s.type);
+  s && typeof s === 'object' && ['hero', 'categories', 'bestSellers', 'newArrivals', 'banner', 'ticker'].includes(s.type);
 
 const getOrCreateLayout = async () => {
   let layout = await HomepageLayout.findOne();
@@ -205,20 +191,17 @@ const getOrCreateLayout = async () => {
   return layout;
 };
 
-// GET /api/homepage/layout
 export const getPublicHomepageLayout = asyncHandler(async (req, res) => {
   const layout = await getOrCreateLayout();
   const sections = layout.sections.filter((s) => s.isActive).map((s) => s.toObject());
   res.status(200).json({ success: true, data: sections });
 });
 
-// GET /api/homepage/admin/layout — full sections list, including hidden.
 export const getAdminHomepageLayout = asyncHandler(async (req, res) => {
   const layout = await getOrCreateLayout();
   res.status(200).json({ success: true, data: layout.sections });
 });
 
-// PUT /api/homepage/admin/layout   { sections: [...] } — full replace.
 export const saveHomepageLayout = asyncHandler(async (req, res) => {
   const { sections } = req.body;
 
@@ -243,7 +226,6 @@ export const saveHomepageLayout = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: layout.sections });
 });
 
-// POST /api/homepage/admin/layout/upload-image — multipart, `image`.
 export const uploadLayoutImage = asyncHandler(async (req, res) => {
   if (!req.file) throw ApiError.badRequest('An image file is required.');
   const uploaded = await uploadImage(req.file.buffer, 'homepage-banners');
@@ -262,9 +244,6 @@ const getOrCreateProductPicks = async () => {
   return doc;
 };
 
-// Resolves stored {family, variantId} refs into full display data.
-// Drops any pick whose family or variant no longer exists (e.g. product
-// deleted after being picked) instead of throwing.
 const resolvePicks = async (picks) => {
   if (!picks.length) return [];
   const familyIds = [...new Set(picks.map((p) => String(p.family)))];
@@ -291,23 +270,18 @@ const resolvePicks = async (picks) => {
     .filter(Boolean);
 };
 
-// GET /api/homepage/product-picks — public, resolved for Home.jsx.
 export const getPublicProductPicks = asyncHandler(async (req, res) => {
   const doc = await getOrCreateProductPicks();
   const [bestSellers, newArrivals] = await Promise.all([resolvePicks(doc.bestSellers), resolvePicks(doc.newArrivals)]);
   res.status(200).json({ success: true, data: { bestSellers, newArrivals } });
 });
 
-// GET /api/homepage/admin/product-picks
 export const getAdminProductPicks = asyncHandler(async (req, res) => {
   const doc = await getOrCreateProductPicks();
   const [bestSellers, newArrivals] = await Promise.all([resolvePicks(doc.bestSellers), resolvePicks(doc.newArrivals)]);
   res.status(200).json({ success: true, data: { bestSellers, newArrivals } });
 });
 
-// PATCH /api/homepage/admin/product-picks/:section   { picks: [{familyId, variantId}, ...] }
-// Full replace of that section's ordered list — covers add, remove, and
-// reorder alike since the admin UI always sends the complete current list.
 export const updateProductPicks = asyncHandler(async (req, res) => {
   const { section } = req.params;
   if (!PRODUCT_PICK_SECTIONS.includes(section)) throw ApiError.badRequest('Invalid section.');
