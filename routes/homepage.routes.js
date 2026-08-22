@@ -8,6 +8,8 @@ import {
   updateHeroSlideValidator,
   reorderHeroSlidesValidator,
   updateAuthHeroValidator,
+  saveHomepageLayoutValidator,
+  updateProductPicksValidator,
 } from '../validators/homepage.validator.js';
 import {
   getPublicHeroSlides,
@@ -18,15 +20,24 @@ import {
   deleteHeroSlide,
   reorderHeroSlides,
   updateAuthHeroImage,
+  getPublicHomepageLayout,
+  getAdminHomepageLayout,
+  saveHomepageLayout,
+  uploadLayoutImage,
+  getPublicProductPicks,
+  getAdminProductPicks,
+  updateProductPicks,
 } from '../controllers/homepage.controller.js';
 
 const router = Router();
 
-/* ---------- Public: Home.jsx / Login.jsx / Signup.jsx (also read by the admin panel) ---------- */
+/* ---------- Public: Home.jsx / Login.jsx / Signup.jsx ---------- */
 router.get('/hero-slides', getPublicHeroSlides);
 router.get('/auth-hero', getPublicAuthHero);
+router.get('/layout', getPublicHomepageLayout);
+router.get('/product-picks', getPublicProductPicks);
 
-/* ---------- Admin: HomepageManager.jsx ---------- */
+/* ---------- Admin: Hero Slider ---------- */
 router.get('/admin/hero-slides', verifyAdminToken, listHeroSlides);
 
 router.post(
@@ -63,6 +74,7 @@ router.delete(
   deleteHeroSlide,
 );
 
+/* ---------- Admin: Login/Signup hero image ---------- */
 router.patch(
   '/admin/auth-hero/:page',
   verifyAdminToken,
@@ -70,6 +82,21 @@ router.patch(
   updateAuthHeroValidator,
   validate,
   updateAuthHeroImage,
+);
+
+/* ---------- Admin: Homepage Builder ---------- */
+router.get('/admin/layout', verifyAdminToken, getAdminHomepageLayout);
+router.put('/admin/layout', verifyAdminToken, saveHomepageLayoutValidator, validate, saveHomepageLayout);
+router.post('/admin/layout/upload-image', verifyAdminToken, upload.single('image'), uploadLayoutImage);
+
+/* ---------- Admin: Featured products (Best Sellers / New Arrivals picks) ---------- */
+router.get('/admin/product-picks', verifyAdminToken, getAdminProductPicks);
+router.patch(
+  '/admin/product-picks/:section',
+  verifyAdminToken,
+  updateProductPicksValidator,
+  validate,
+  updateProductPicks,
 );
 
 export default router;

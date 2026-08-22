@@ -1,5 +1,8 @@
 import HeroSlide from '../models/HeroSlide.js';
 import AuthHeroContent from '../models/AuthHeroContent.js';
+import HomepageLayout, { FIXED_SECTION_TYPES } from '../models/HomepageLayout.js';
+import HomepageProductPicks from '../models/HomepageProductPicks.js';
+import ProductFamily from '../models/ProductFamily.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { uploadImage, deleteImage, publicIdFromUrl } from '../services/cloudinary.service.js';
@@ -42,8 +45,7 @@ export const getPublicHeroSlides = asyncHandler(async (req, res) => {
 
 // GET /api/homepage/auth-hero — singleton doc; never 404s, just returns
 // nulls if nothing's been uploaded yet so Login/Signup can fall back to
-// their branded gradient. Also serves the admin panel (adminAuthHeroStore
-// reads this same public endpoint — no separate admin GET exists).
+// their branded gradient.
 export const getPublicAuthHero = asyncHandler(async (req, res) => {
   const doc = await AuthHeroContent.findOne();
   res.status(200).json({
@@ -56,7 +58,7 @@ export const getPublicAuthHero = asyncHandler(async (req, res) => {
 });
 
 /* =========================================================
-   ADMIN — HomepageManager.jsx
+   ADMIN: Hero slides — HomepageManager.jsx
    ========================================================= */
 
 // GET /api/homepage/admin/hero-slides — every slide, active or hidden.
@@ -174,4 +176,159 @@ export const updateAuthHeroImage = asyncHandler(async (req, res) => {
 
   await doc.save();
   res.status(200).json({ success: true, data: { login: doc.login, signup: doc.signup } });
+});
+
+/* =========================================================
+   Homepage Builder (sections layout)
+   ========================================================= */
+const defaultSections = () => [
+  { id: 'hero', type: 'hero', isActive: true, heroSettings: {} },
+  { id: 'categories', type: 'categories', isActive: true },
+  { id: 'bestSellers', type: 'bestSellers', isActive: true },
+  { id: 'newArrivals', type: 'newArrivals', isActive: true },
+];
+
+const isValidSection = (s) =>
+  s && typeof s === 'object' && ['hero', 'categories', 'bestSellers', 'newArrivals', 'banner'].includes(s.type);
+
+const getOrCreateLayout = async () => {
+  let layout = await HomepageLayout.findOne();
+  if (!layout) {
+    layout = await HomepageLayout.create({ sections: defaultSections() });
+    return layout;
+  }
+  const hasStaleShape = layout.sections.length > 0 && !layout.sections.every(isValidSection);
+  if (hasStaleShape) {
+    layout.sections = defaultSections();
+    await layout.save();
+  }
+  return layout;
+};
+
+// GET /api/homepage/layout
+export const getPublicHomepageLayout = asyncHandler(async (req, res) => {
+  const layout = await getOrCreateLayout();
+  const sections = layout.sections.filter((s) => s.isActive).map((s) => s.toObject());
+  res.status(200).json({ success: true, data: sections });
+});
+
+// GET /api/homepage/admin/layout — full sections list, including hidden.
+export const getAdminHomepageLayout = asyncHandler(async (req, res) => {
+  const layout = await getOrCreateLayout();
+  res.status(200).json({ success: true, data: layout.sections });
+});
+
+// PUT /api/homepage/admin/layout   { sections: [...] } — full replace.
+export const saveHomepageLayout = asyncHandler(async (req, res) => {
+  const { sections } = req.body;
+
+  const seenTypes = new Set();
+  sections.forEach((section) => {
+    if (FIXED_SECTION_TYPES.includes(section.type)) {
+      if (seenTypes.has(section.type)) {
+        throw ApiError.badRequest(`The "${section.type}" section can only appear once.`);
+      }
+      seenTypes.add(section.type);
+    }
+  });
+  const missingFixed = FIXED_SECTION_TYPES.filter((t) => !seenTypes.has(t));
+  if (missingFixed.length) {
+    throw ApiError.badRequest(`Missing required section(s): ${missingFixed.join(', ')}.`);
+  }
+
+  const layout = await getOrCreateLayout();
+  layout.sections = sections;
+  await layout.save();
+
+  res.status(200).json({ success: true, data: layout.sections });
+});
+
+// POST /api/homepage/admin/layout/upload-image — multipart, `image`.
+export const uploadLayoutImage = asyncHandler(async (req, res) => {
+  if (!req.file) throw ApiError.badRequest('An image file is required.');
+  const uploaded = await uploadImage(req.file.buffer, 'homepage-banners');
+  res.status(200).json({ success: true, data: { url: uploaded.url } });
+});
+
+/* =========================================================
+   Featured products (Best Sellers / New Arrivals picks)
+   ========================================================= */
+
+const PRODUCT_PICK_SECTIONS = ['bestSellers', 'newArrivals'];
+
+const getOrCreateProductPicks = async () => {
+  let doc = await HomepageProductPicks.findOne();
+  if (!doc) doc = await HomepageProductPicks.create({ bestSellers: [], newArrivals: [] });
+  return doc;
+};
+
+// Resolves stored {family, variantId} refs into full display data.
+// Drops any pick whose family or variant no longer exists (e.g. product
+// deleted after being picked) instead of throwing.
+const resolvePicks = async (picks) => {
+  if (!picks.length) return [];
+  const familyIds = [...new Set(picks.map((p) => String(p.family)))];
+  const families = await ProductFamily.find({ _id: { $in: familyIds } });
+  const familyById = new Map(families.map((f) => [String(f._id), f]));
+
+  return picks
+    .map((pick) => {
+      const family = familyById.get(String(pick.family));
+      const variant = family?.variants.id(pick.variantId);
+      if (!family || !variant) return null;
+      return {
+        familyId: family._id,
+        variantId: variant._id,
+        displayName: variant.displayName,
+        color: variant.color,
+        price: family.price,
+        badge: family.badge,
+        category: family.category,
+        subCategory: family.subCategory,
+        image: variant.images?.[0] || null,
+      };
+    })
+    .filter(Boolean);
+};
+
+// GET /api/homepage/product-picks — public, resolved for Home.jsx.
+export const getPublicProductPicks = asyncHandler(async (req, res) => {
+  const doc = await getOrCreateProductPicks();
+  const [bestSellers, newArrivals] = await Promise.all([resolvePicks(doc.bestSellers), resolvePicks(doc.newArrivals)]);
+  res.status(200).json({ success: true, data: { bestSellers, newArrivals } });
+});
+
+// GET /api/homepage/admin/product-picks
+export const getAdminProductPicks = asyncHandler(async (req, res) => {
+  const doc = await getOrCreateProductPicks();
+  const [bestSellers, newArrivals] = await Promise.all([resolvePicks(doc.bestSellers), resolvePicks(doc.newArrivals)]);
+  res.status(200).json({ success: true, data: { bestSellers, newArrivals } });
+});
+
+// PATCH /api/homepage/admin/product-picks/:section   { picks: [{familyId, variantId}, ...] }
+// Full replace of that section's ordered list — covers add, remove, and
+// reorder alike since the admin UI always sends the complete current list.
+export const updateProductPicks = asyncHandler(async (req, res) => {
+  const { section } = req.params;
+  if (!PRODUCT_PICK_SECTIONS.includes(section)) throw ApiError.badRequest('Invalid section.');
+
+  const { picks } = req.body;
+
+  const familyIds = [...new Set(picks.map((p) => p.familyId))];
+  const families = await ProductFamily.find({ _id: { $in: familyIds } });
+  const familyById = new Map(families.map((f) => [String(f._id), f]));
+
+  picks.forEach((pick) => {
+    const family = familyById.get(pick.familyId);
+    if (!family) throw ApiError.badRequest('One of the selected products no longer exists.');
+    if (!family.variants.id(pick.variantId)) {
+      throw ApiError.badRequest('One of the selected color variants no longer exists.');
+    }
+  });
+
+  const doc = await getOrCreateProductPicks();
+  doc[section] = picks.map((p) => ({ family: p.familyId, variantId: p.variantId }));
+  await doc.save();
+
+  res.status(200).json({ success: true, data: await resolvePicks(doc[section]) });
 });

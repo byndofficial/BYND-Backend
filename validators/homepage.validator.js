@@ -1,9 +1,15 @@
 import { body, param } from 'express-validator';
+import { SPACING_OPTIONS } from '../models/HomepageLayout.js';
 
 const ELEMENT_TYPES = ['heading', 'subheading', 'paragraph', 'button'];
 const ALIGNS = ['left', 'center', 'right'];
 const MAX_ELEMENTS = 14;
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const BANNER_HEIGHT_MODES = ['auto', 'small', 'medium', 'large', 'custom'];
+
+/* =========================================================
+   Hero slides
+   ========================================================= */
 
 const validateLayout = (layout, label) => {
   if (!layout || typeof layout !== 'object') throw new Error(`Element ${label} layout is missing.`);
@@ -81,4 +87,50 @@ export const updateAuthHeroValidator = [
   body('focalX').optional().isFloat({ min: 0, max: 100 }),
   body('focalY').optional().isFloat({ min: 0, max: 100 }),
   body('paneWidth').optional().isFloat({ min: 20, max: 80 }),
+];
+
+/* =========================================================
+   Homepage Builder (sections layout)
+   ========================================================= */
+
+const HEIGHT_MODES = ['auto', 'small', 'medium', 'large', 'fullscreen', 'custom'];
+
+export const saveHomepageLayoutValidator = [
+  body('sections').isArray({ min: 1 }).withMessage('Sections list is required.'),
+  body('sections.*.id').isString().notEmpty(),
+  body('sections.*.type').isIn(['hero', 'categories', 'bestSellers', 'newArrivals', 'banner']),
+  body('sections.*.isActive').optional().isBoolean(),
+
+  body('sections.*.heroSettings.heightMode').optional().isIn(['default', 'custom']),
+  body('sections.*.heroSettings.customHeightDesktop').optional().isInt({ min: 240, max: 900 }),
+  body('sections.*.heroSettings.customHeightMobile').optional().isInt({ min: 180, max: 600 }),
+
+  body('sections.*.bannerSettings.layout').optional().isIn(['single', 'split']),
+  body('sections.*.bannerSettings.heightMode').optional().isIn(HEIGHT_MODES),
+  body('sections.*.bannerSettings.customHeight').optional().isInt({ min: 80, max: 1000 }),
+  body('sections.*.bannerSettings.fullBleed').optional().isBoolean(),
+  body('sections.*.bannerSettings.spacingTop').optional().isIn(SPACING_OPTIONS),
+  body('sections.*.bannerSettings.spacingBottom').optional().isIn(SPACING_OPTIONS),
+  body('sections.*.bannerSettings.gap').optional().isIn(SPACING_OPTIONS),
+  body('sections.*.bannerSettings.autoplay').optional().isBoolean(),
+  body('sections.*.bannerSettings.autoplayDelay').optional().isInt({ min: 2000, max: 15000 }),
+  body('sections.*.bannerSettings.blocks').optional().isArray(),
+  body('sections.*.bannerSettings.blocks.*.id').if(body('sections.*.bannerSettings.blocks').exists()).isString().notEmpty(),
+  body('sections.*.bannerSettings.blocks.*.image').if(body('sections.*.bannerSettings.blocks').exists()).isString().notEmpty(),
+  body('sections.*.bannerSettings.blocks.*.focalX').optional().isFloat({ min: 0, max: 100 }),
+  body('sections.*.bannerSettings.blocks.*.focalY').optional().isFloat({ min: 0, max: 100 }),
+];
+/* =========================================================
+   Featured products (Best Sellers / New Arrivals picks)
+   ========================================================= */
+
+export const productPicksSectionParamValidator = [
+  param('section').isIn(['bestSellers', 'newArrivals']).withMessage('Invalid section.'),
+];
+
+export const updateProductPicksValidator = [
+  ...productPicksSectionParamValidator,
+  body('picks').isArray().withMessage('Picks must be an array.'),
+  body('picks.*.familyId').isMongoId().withMessage('Invalid product id.'),
+  body('picks.*.variantId').isString().notEmpty().withMessage('Invalid variant id.'),
 ];
