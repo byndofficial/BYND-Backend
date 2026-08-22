@@ -1,40 +1,54 @@
 import { body, param } from 'express-validator';
 
-const HEADLINE_COLORS = ['white', 'yellow', 'custom'];
-const HEADLINE_SIZES = ['sm', 'md', 'lg', 'xl'];
-const MAX_LINES = 4;
-const MAX_SEGMENTS_PER_LINE = 6;
+const ELEMENT_TYPES = ['heading', 'subheading', 'paragraph', 'button'];
+const ALIGNS = ['left', 'center', 'right'];
+const MAX_ELEMENTS = 14;
+const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-// headlineLines arrives as a JSON string (multipart can't carry nested
+const validateLayout = (layout, label) => {
+  if (!layout || typeof layout !== 'object') throw new Error(`Element ${label} layout is missing.`);
+  ['x', 'y', 'width', 'fontSize'].forEach((field) => {
+    if (layout[field] !== undefined && (typeof layout[field] !== 'number' || Number.isNaN(layout[field]))) {
+      throw new Error(`Element ${label} ${field} must be a number.`);
+    }
+  });
+  if (layout.x !== undefined && (layout.x < 0 || layout.x > 100)) throw new Error(`Element ${label} x must be between 0 and 100.`);
+  if (layout.y !== undefined && (layout.y < 0 || layout.y > 100)) throw new Error(`Element ${label} y must be between 0 and 100.`);
+  if (layout.width !== undefined && (layout.width < 5 || layout.width > 100)) {
+    throw new Error(`Element ${label} width must be between 5 and 100.`);
+  }
+  if (layout.fontSize !== undefined && (layout.fontSize < 8 || layout.fontSize > 120)) {
+    throw new Error(`Element ${label} font size must be between 8 and 120.`);
+  }
+};
+
+// `elements` arrives as a JSON string (FormData can't carry nested
 // arrays) — parse and shape-check it here, once, so the controller can
 // trust it. Throwing inside a custom validator fails the field with that
 // message.
-const validateHeadlineLines = (value) => {
+const validateElements = (value) => {
   let parsed;
   try {
     parsed = JSON.parse(value);
   } catch {
-    throw new Error('Headline data is malformed.');
+    throw new Error('Slide layout data is malformed.');
   }
-  if (!Array.isArray(parsed)) throw new Error('Headline must be a list of lines.');
-  if (parsed.length > MAX_LINES) throw new Error(`Headline can have at most ${MAX_LINES} lines.`);
+  if (!Array.isArray(parsed)) throw new Error('Slide layout must be a list of elements.');
+  if (parsed.length > MAX_ELEMENTS) throw new Error(`A slide can have at most ${MAX_ELEMENTS} elements.`);
 
-  parsed.forEach((line) => {
-    if (!line || !Array.isArray(line.segments)) throw new Error('Each headline line needs a list of words/phrases.');
-    if (line.segments.length > MAX_SEGMENTS_PER_LINE) {
-      throw new Error(`Each line can have at most ${MAX_SEGMENTS_PER_LINE} words/phrases.`);
+  parsed.forEach((el) => {
+    if (!el || typeof el.id !== 'string' || !el.id) throw new Error('Each element needs an id.');
+    if (!ELEMENT_TYPES.includes(el.type)) throw new Error('Invalid element type.');
+    if (typeof el.text !== 'string' || el.text.length > 300) throw new Error('Element text is invalid or too long.');
+    if (el.link !== undefined && (typeof el.link !== 'string' || el.link.length > 300)) {
+      throw new Error('Element link is invalid.');
     }
-    line.segments.forEach((seg) => {
-      if (typeof seg.text !== 'string' || seg.text.length > 40) {
-        throw new Error('Headline text is invalid or too long.');
-      }
-      if (seg.color !== undefined && !HEADLINE_COLORS.includes(seg.color)) {
-        throw new Error('Invalid headline color.');
-      }
-      if (seg.size !== undefined && !HEADLINE_SIZES.includes(seg.size)) {
-        throw new Error('Invalid headline size.');
-      }
-    });
+    if (el.align !== undefined && !ALIGNS.includes(el.align)) throw new Error('Invalid element alignment.');
+    if (el.color !== undefined && !HEX_COLOR.test(el.color)) throw new Error('Invalid element color.');
+    if (el.bgColor !== undefined && !HEX_COLOR.test(el.bgColor)) throw new Error('Invalid element background color.');
+
+    validateLayout(el.desktop, 'desktop');
+    validateLayout(el.mobile, 'mobile');
   });
   return true;
 };
@@ -42,17 +56,7 @@ const validateHeadlineLines = (value) => {
 export const heroSlideIdParamValidator = [param('slideId').isMongoId().withMessage('Invalid slide id.')];
 
 export const createHeroSlideValidator = [
-  body('eyebrow').optional().trim().isLength({ max: 40 }),
-  body('headlineLines').optional().custom(validateHeadlineLines),
-  body('subtext').optional().trim().isLength({ max: 300 }),
-  body('badgeLine1').optional().trim().isLength({ max: 20 }),
-  body('badgeLine2').optional().trim().isLength({ max: 20 }),
-  body('primaryCtaLabel').optional().trim().isLength({ max: 40 }),
-  body('primaryCtaLink').optional().trim(),
-  body('secondaryCtaLabel').optional().trim().isLength({ max: 40 }),
-  body('secondaryCtaLink').optional().trim(),
-  body('contentVAlign').optional().isIn(['top', 'center', 'bottom']),
-  body('contentHAlign').optional().isIn(['left', 'center', 'right']),
+  body('elements').optional().custom(validateElements),
   body('focalDesktopX').optional().isFloat({ min: 0, max: 100 }),
   body('focalDesktopY').optional().isFloat({ min: 0, max: 100 }),
   body('focalMobileX').optional().isFloat({ min: 0, max: 100 }),
@@ -76,4 +80,5 @@ export const updateAuthHeroValidator = [
   param('page').isIn(['login', 'signup']).withMessage('Page must be "login" or "signup".'),
   body('focalX').optional().isFloat({ min: 0, max: 100 }),
   body('focalY').optional().isFloat({ min: 0, max: 100 }),
+  body('paneWidth').optional().isFloat({ min: 20, max: 80 }),
 ];

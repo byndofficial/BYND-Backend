@@ -5,20 +5,10 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { uploadImage, deleteImage, publicIdFromUrl } from '../services/cloudinary.service.js';
 
 // Plain scalar fields, copied straight from req.body when present.
-// headlineLines is handled separately below — it arrives as a JSON
-// string (FormData can't carry nested arrays) and needs parsing before
-// it can be assigned, unlike everything else in this list.
+// `elements` is handled separately below — it arrives as a JSON string
+// (FormData can't carry nested arrays) and needs parsing before it can
+// be assigned, unlike everything else in this list.
 const HERO_SLIDE_FIELDS = [
-  'eyebrow',
-  'subtext',
-  'badgeLine1',
-  'badgeLine2',
-  'primaryCtaLabel',
-  'primaryCtaLink',
-  'secondaryCtaLabel',
-  'secondaryCtaLink',
-  'contentVAlign',
-  'contentHAlign',
   'focalDesktopX',
   'focalDesktopY',
   'focalMobileX',
@@ -29,9 +19,9 @@ const HERO_SLIDE_FIELDS = [
 ];
 
 // The homepage.validator.js custom validator already confirmed this
-// parses and fits within size limits before this ever runs — this
+// parses and fits within size/shape limits before this ever runs — this
 // try/catch is just defense in depth against an unexpected shape.
-const parseHeadlineLines = (raw) => {
+const parseElements = (raw) => {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -59,8 +49,8 @@ export const getPublicAuthHero = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      login: doc?.login || { image: null, focalX: 50, focalY: 50 },
-      signup: doc?.signup || { image: null, focalX: 50, focalY: 50 },
+      login: doc?.login || { image: null, focalX: 50, focalY: 50, paneWidth: 50 },
+      signup: doc?.signup || { image: null, focalX: 50, focalY: 50, paneWidth: 50 },
     },
   });
 });
@@ -90,8 +80,8 @@ export const createHeroSlide = asyncHandler(async (req, res) => {
   HERO_SLIDE_FIELDS.forEach((field) => {
     if (req.body[field] !== undefined) payload[field] = req.body[field];
   });
-  if (req.body.headlineLines !== undefined) {
-    payload.headlineLines = parseHeadlineLines(req.body.headlineLines);
+  if (req.body.elements !== undefined) {
+    payload.elements = parseElements(req.body.elements);
   }
 
   const slide = await HeroSlide.create({ ...payload, order: nextOrder, image });
@@ -108,8 +98,8 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
   HERO_SLIDE_FIELDS.forEach((field) => {
     if (req.body[field] !== undefined) slide[field] = req.body[field];
   });
-  if (req.body.headlineLines !== undefined) {
-    slide.headlineLines = parseHeadlineLines(req.body.headlineLines);
+  if (req.body.elements !== undefined) {
+    slide.elements = parseElements(req.body.elements);
   }
 
   if (req.file) {
@@ -161,24 +151,25 @@ export const updateAuthHeroImage = asyncHandler(async (req, res) => {
   let doc = await AuthHeroContent.findOne();
   if (!doc) {
     doc = await AuthHeroContent.create({
-      login: { image: null, focalX: 50, focalY: 50 },
-      signup: { image: null, focalX: 50, focalY: 50 },
+      login: { image: null, focalX: 50, focalY: 50, paneWidth: 50 },
+      signup: { image: null, focalX: 50, focalY: 50, paneWidth: 50 },
     });
   }
 
   const previousPublicId = publicIdFromUrl(doc[page]?.image);
   const nextFocalX = req.body.focalX !== undefined ? Number(req.body.focalX) : doc[page]?.focalX ?? 50;
   const nextFocalY = req.body.focalY !== undefined ? Number(req.body.focalY) : doc[page]?.focalY ?? 50;
+  const nextPaneWidth = req.body.paneWidth !== undefined ? Number(req.body.paneWidth) : doc[page]?.paneWidth ?? 50;
 
   if (req.file) {
     const uploaded = await uploadImage(req.file.buffer, 'auth-hero');
-    doc[page] = { image: uploaded.url, focalX: nextFocalX, focalY: nextFocalY };
+    doc[page] = { image: uploaded.url, focalX: nextFocalX, focalY: nextFocalY, paneWidth: nextPaneWidth };
     if (previousPublicId) await deleteImage(previousPublicId);
   } else if (req.body.image === 'null') {
-    doc[page] = { image: null, focalX: 50, focalY: 50 };
+    doc[page] = { image: null, focalX: 50, focalY: 50, paneWidth: nextPaneWidth };
     if (previousPublicId) await deleteImage(previousPublicId);
   } else {
-    doc[page] = { image: doc[page]?.image ?? null, focalX: nextFocalX, focalY: nextFocalY };
+    doc[page] = { image: doc[page]?.image ?? null, focalX: nextFocalX, focalY: nextFocalY, paneWidth: nextPaneWidth };
   }
 
   await doc.save();

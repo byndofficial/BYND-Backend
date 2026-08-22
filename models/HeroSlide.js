@@ -1,81 +1,66 @@
 import mongoose from 'mongoose';
 
-// Homepage hero slider slides, managed from the admin Homepage Manager.
-//
-// Headline is a list of lines, each a list of styled segments — replaces
-// the old fixed titlePre/titleAccent/titlePost trio (single accent word,
-// fixed white/yellow/white coloring, one size). Spacing between segments
-// is inserted at render time (HeroSlider.jsx), never relies on the admin
-// typing trailing/leading spaces into a text field — that was the root
-// cause of headlines running together (express-validator's .trim() was
-// silently stripping those manually-typed spaces on save).
-//
-// titlePre/titleAccent/titlePost are kept below, but ONLY as legacy
-// read-only fields — old slides saved before this change still carry
-// them, and the frontend falls back to them (wrapped into one line) when
-// headlineLines is empty. Nothing new writes to them.
-//
-// focalDesktopX/Y and focalMobileX/Y let the admin pick, per breakpoint,
-// which part of the single uploaded image stays in frame (0-100%, used as
-// CSS background-position). overlayStrength (0-100) controls how dark the
-// text-readability scrim over the image is.
+// A slide is a background image + a free-form list of "elements"
+// (heading / subheading / paragraph / button). Each element carries a
+// fully independent desktop layout and mobile layout — position, box
+// width and font size are never shared between breakpoints, matching the
+// admin's two separate drag canvases (HeroSlideFormModal.jsx). Text,
+// color, boldness, alignment and (for buttons) link/background color are
+// shared across both.
 
-const headlineSegmentSchema = new mongoose.Schema(
+const HERO_ELEMENT_TYPES = ['heading', 'subheading', 'paragraph', 'button'];
+
+// One breakpoint's geometry for an element.
+const heroElementLayoutSchema = new mongoose.Schema(
   {
-    text: { type: String, trim: true, maxlength: 40, default: '' },
-    color: { type: String, enum: ['white', 'yellow', 'custom'], default: 'white' },
-    customColor: { type: String, trim: true, maxlength: 20, default: '' }, // hex, used when color === 'custom'
-    size: { type: String, enum: ['sm', 'md', 'lg', 'xl'], default: 'md' },
-    bold: { type: Boolean, default: true },
+    // Top-left corner, as a percentage of the slide's own width/height —
+    // resolution-independent and drag-and-drop friendly.
+    x: { type: Number, default: 10, min: 0, max: 100 },
+    y: { type: Number, default: 40, min: 0, max: 100 },
+    // Text box width as a percentage of slide width (ignored for
+    // buttons, which size to their own text).
+    width: { type: Number, default: 40, min: 5, max: 100 },
+    // Real pixels at this breakpoint's reference viewport width.
+    fontSize: { type: Number, default: 32, min: 8, max: 120 },
   },
   { _id: false },
 );
 
-const headlineLineSchema = new mongoose.Schema(
+const heroElementSchema = new mongoose.Schema(
   {
-    segments: { type: [headlineSegmentSchema], default: [] },
+    // Client-generated id (e.g. `el_<timestamp>_<rand>`) — stable across
+    // edits so drag updates and deletes target the right element.
+    id: { type: String, required: true },
+    type: { type: String, enum: HERO_ELEMENT_TYPES, required: true },
+    text: { type: String, trim: true, maxlength: 300, default: '' },
+
+    color: { type: String, default: '#ffffff' },
+    bold: { type: Boolean, default: true },
+    align: { type: String, enum: ['left', 'center', 'right'], default: 'left' },
+
+    // Button-only fields — harmless/unused on other types.
+    link: { type: String, trim: true, default: '' },
+    bgColor: { type: String, default: '#ffffff' },
+
+    desktop: { type: heroElementLayoutSchema, default: () => ({}) },
+    mobile: { type: heroElementLayoutSchema, default: () => ({}) },
   },
   { _id: false },
 );
 
 const heroSlideSchema = new mongoose.Schema(
   {
-    eyebrow: { type: String, trim: true, maxlength: 40, default: '' },
-
-    headlineLines: { type: [headlineLineSchema], default: [] },
-
-    // ---- legacy, read-only — see comment above ----
-    titlePre: { type: String, trim: true, maxlength: 40, default: '' },
-    titleAccent: { type: String, trim: true, maxlength: 40, default: '' },
-    titlePost: { type: String, trim: true, maxlength: 40, default: '' },
-    // ---- end legacy ----
-
-    subtext: { type: String, trim: true, maxlength: 300, default: '' },
-
-    // Cloudinary URL — null falls back to the icon-based placeholder the
-    // frontend already renders when no image has been uploaded yet.
     image: { type: String, default: null },
 
-    // Where the image is "anchored" at each breakpoint — same image, two
-    // crops. Defaults to dead-center, matching plain `background-position: center`.
+    // Desktop + mobile focal points for the background image crop.
     focalDesktopX: { type: Number, default: 50, min: 0, max: 100 },
     focalDesktopY: { type: Number, default: 50, min: 0, max: 100 },
     focalMobileX: { type: Number, default: 50, min: 0, max: 100 },
     focalMobileY: { type: Number, default: 50, min: 0, max: 100 },
 
-    // 0 = no darkening at all, 100 = heaviest.
-    overlayStrength: { type: Number, default: 55, min: 0, max: 100 },
+    overlayStrength: { type: Number, default: 45, min: 0, max: 100 },
 
-    badgeLine1: { type: String, trim: true, maxlength: 20, default: '' },
-    badgeLine2: { type: String, trim: true, maxlength: 20, default: '' },
-
-    primaryCtaLabel: { type: String, trim: true, maxlength: 40, default: '' },
-    primaryCtaLink: { type: String, trim: true, default: '' },
-    secondaryCtaLabel: { type: String, trim: true, maxlength: 40, default: '' },
-    secondaryCtaLink: { type: String, trim: true, default: '' },
-
-    contentVAlign: { type: String, enum: ['top', 'center', 'bottom'], default: 'bottom' },
-    contentHAlign: { type: String, enum: ['left', 'center', 'right'], default: 'left' },
+    elements: { type: [heroElementSchema], default: [] },
 
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

@@ -3,14 +3,19 @@ import mongoose from 'mongoose';
 // Singleton doc backing the Login/Signup page hero images (admin's
 // Homepage Manager → Login & Signup tab). Desktop-only in the UI
 // (AuthLayout hides the pane below 900px), so no separate mobile crop —
-// just a focal point so the admin can position a portrait-ish (3:4) crop
-// nicely regardless of the source photo's original composition.
+// just a focal point so the admin can position a portrait-ish crop
+// nicely regardless of the source photo's original composition, plus a
+// paneWidth to control how much of the screen the image side takes up.
 
 const authHeroPaneSchema = new mongoose.Schema(
   {
     image: { type: String, default: null },
     focalX: { type: Number, default: 50, min: 0, max: 100 },
     focalY: { type: Number, default: 50, min: 0, max: 100 },
+    // How wide the image panel is on desktop, as a percentage of the
+    // page width (the form panel takes the rest). Purely a layout
+    // control — nothing to do with image cropping/focal point.
+    paneWidth: { type: Number, default: 50, min: 20, max: 80 },
   },
   { _id: false },
 );
